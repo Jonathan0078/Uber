@@ -35,40 +35,17 @@ export default function DriverRegister({ onBack, onRegister }) {
     setLoading(true)
     setError('')
 
-    if (formData.password !== formData.confirmPassword) {
-      setError('As senhas não coincidem!')
-      setLoading(false)
-      return
-    }
-
-    if (formData.password.length < 6) {
-      setError('A senha deve ter pelo menos 6 caracteres!')
-      setLoading(false)
-      return
-    }
-
     try {
-      // Criar usuário no Firebase
-      const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password)
-      const user = userCredential.user
-      
-      // Atualizar perfil do usuário
-      await updateProfile(user, {
-        displayName: formData.name
-      })
-
       // Criar objeto do motorista
       const newDriver = {
-        id: user.uid,
         name: formData.name,
-        email: formData.email,
         phone: formData.phone,
         cnh: formData.cnh,
         vehicle: formData.vehicle,
         plate: formData.plate,
         year: formData.year,
         pixKey: formData.pixKey,
-        provider: 'firebase',
+        provider: 'firebase', // Ou outro provedor se houver
         type: 'driver',
         available: false,
         trips: 0,
@@ -76,7 +53,7 @@ export default function DriverRegister({ onBack, onRegister }) {
         createdAt: new Date().toISOString()
       }
 
-      // Salvar no localStorage
+      // Salvar no localStorage (se ainda for necessário)
       const drivers = JSON.parse(localStorage.getItem('drivers') || '[]')
       drivers.push(newDriver)
       localStorage.setItem('drivers', JSON.stringify(drivers))
@@ -85,21 +62,7 @@ export default function DriverRegister({ onBack, onRegister }) {
       onRegister(newDriver)
     } catch (error) {
       console.error('Erro no cadastro:', error)
-      let errorMessage = 'Erro ao criar conta. Tente novamente.'
-      
-      switch (error.code) {
-        case 'auth/email-already-in-use':
-          errorMessage = 'Este e-mail já está em uso.'
-          break
-        case 'auth/invalid-email':
-          errorMessage = 'E-mail inválido.'
-          break
-        case 'auth/weak-password':
-          errorMessage = 'A senha é muito fraca.'
-          break
-      }
-      
-      setError(errorMessage)
+      setError('Erro ao criar conta. Tente novamente.')
     } finally {
       setLoading(false)
     }
@@ -147,18 +110,7 @@ export default function DriverRegister({ onBack, onRegister }) {
                   required
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  name="email"
-                  type="email"
-                  placeholder="seu@email.com"
-                  value={formData.email}
-                  onChange={handleChange}
-                  required
-                />
-              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="phone">Telefone</Label>
                 <Input
@@ -231,30 +183,7 @@ export default function DriverRegister({ onBack, onRegister }) {
                   required
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Senha</Label>
-                <Input
-                  id="password"
-                  name="password"
-                  type="password"
-                  placeholder="Sua senha"
-                  value={formData.password}
-                  onChange={handleChange}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="confirmPassword">Confirmar senha</Label>
-                <Input
-                  id="confirmPassword"
-                  name="confirmPassword"
-                  type="password"
-                  placeholder="Confirme sua senha"
-                  value={formData.confirmPassword}
-                  onChange={handleChange}
-                  required
-                />
-              </div>
+
               <Button 
                 type="submit" 
                 className="w-full bg-green-600 hover:bg-green-700"
