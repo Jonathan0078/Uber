@@ -20,8 +20,10 @@ export default function DriverLogin({ onBack, onLogin, onRegister }) {
     setError('')
     
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password)
-      const user = userCredential.user
+      console.log("Attempting login with email:", email);
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+      console.log("User logged in successfully:", user.uid);
       
       // Criar objeto do motorista com dados do Firebase
       const driverData = {
@@ -42,21 +44,24 @@ export default function DriverLogin({ onBack, onLogin, onRegister }) {
         createdAt: new Date().toISOString()
       };
 
+      console.log("Checking for existing driver in Firestore...");
       // Buscar no Firestore se o motorista já existe
       const existingDriver = await driverService.getById(user.uid);
       if (existingDriver) {
+        console.log("Driver found in Firestore, updating data.");
         // Atualizar dados do motorista no Firestore
         await driverService.update(user.uid, driverData);
         Object.assign(driverData, existingDriver); // Merge existing data
       } else {
+        console.log("Driver not found in Firestore, creating new entry.");
         // Criar novo motorista no Firestore
         await driverService.create(driverData);
       }
 
       // Salvar o ID do motorista logado no localStorage
       localStorage.setItem("currentDriverId", user.uid);
-      onLogin(driverData)
-    } catch (error) {
+      onLogin(driverData);
+      console.log("Login process completed.");    } catch (error) {
       console.error("Erro no login:", error);
       let errorMessage = "Erro ao fazer login. Tente novamente.";
 
