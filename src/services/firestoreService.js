@@ -9,7 +9,8 @@ import {
   where, 
   orderBy, 
   onSnapshot,
-  serverTimestamp 
+  serverTimestamp,
+  getDoc
 } from 'firebase/firestore';
 import { db } from '../firebase';
 
@@ -174,7 +175,22 @@ export const userService = {
         updatedAt: serverTimestamp()
       });
     } catch (error) {
-      console.error('Erro ao atualizar usuário:', error);
+      console.error("Erro ao atualizar usuário:", error);
+      throw error;
+    }
+  },
+
+  async getById(userId) {
+    try {
+      const docRef = doc(db, COLLECTIONS.USERS, userId);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        return { id: docSnap.id, ...docSnap.data() };
+      } else {
+        return null;
+      }
+    } catch (error) {
+      console.error("Erro ao buscar usuário por ID:", error);
       throw error;
     }
   }
@@ -203,7 +219,22 @@ export const driverService = {
         updatedAt: serverTimestamp()
       });
     } catch (error) {
-      console.error('Erro ao atualizar motorista:', error);
+      console.error("Erro ao atualizar motorista:", error);
+      throw error;
+    }
+  },
+
+  async getById(driverId) {
+    try {
+      const docRef = doc(db, COLLECTIONS.DRIVERS, driverId);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        return { id: docSnap.id, ...docSnap.data() };
+      } else {
+        return null;
+      }
+    } catch (error) {
+      console.error("Erro ao buscar motorista por ID:", error);
       throw error;
     }
   },

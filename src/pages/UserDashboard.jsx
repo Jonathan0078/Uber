@@ -35,6 +35,22 @@ export default function UserDashboard({ user, onLogout }) {
   ]
 
   useEffect(() => {
+    const fetchUserData = async () => {
+      if (user?.id) {
+        const userData = await userService.getById(user.id);
+        if (userData) {
+          // Atualizar o estado do usuário com os dados do Firestore
+          // Isso é importante caso o usuário tenha atualizado o perfil em outro lugar
+          // ou para garantir que os dados mais recentes sejam usados.
+          // No entanto, o componente UserDashboard já recebe 'user' como prop, então
+          // talvez não seja necessário atualizar o estado 'user' aqui, mas sim
+          // usar os dados do 'userData' diretamente onde for preciso.
+        }
+      }
+    };
+
+    fetchUserData();
+
     // Solicitar localização atual
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -45,7 +61,7 @@ export default function UserDashboard({ user, onLogout }) {
           })
         },
         (error) => {
-          console.error('Erro ao obter localização:', error)
+          console.error("Erro ao obter localização:", error)
           // Usar localização padrão de Rio Pardo-RS
           setCurrentLocation({
             lat: -29.9897,
@@ -69,11 +85,11 @@ export default function UserDashboard({ user, onLogout }) {
         setRideRequests(requests);
         
         // Verificar se há propostas de preço
-        const priceProposedRequest = requests.find(r => r.status === 'priceProposed');
-        if (priceProposedRequest && rideStatus === 'waitingPrice') {
+        const priceProposedRequest = requests.find(r => r.status === "priceProposed");
+        if (priceProposedRequest && rideStatus === "waitingPrice") {
           setDriverPrice(priceProposedRequest.proposedPrice);
           setSelectedDriver(priceProposedRequest.driver);
-          setRideStatus('priceReceived');
+          setRideStatus("priceReceived");
         }
       });
     }
@@ -83,7 +99,7 @@ export default function UserDashboard({ user, onLogout }) {
         unsubscribe();
       }
     };
-  }, [user?.id, rideStatus])
+  }, [user?.id, rideStatus]);
 
   const requestRide = async () => {
     if (!originStreet.trim() || !destination.trim()) {

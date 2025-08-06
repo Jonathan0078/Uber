@@ -26,38 +26,54 @@ export default function UserRegister({ onBack, onRegister }) {
     e.preventDefault()
     setLoading(true)
 
-    if (formData.password !== formData.confirmPassword) {
-      alert('As senhas não coincidem!')
+    try {
+      // Criar usuário no Firebase
+      const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password)
+      const user = userCredential.user
+      
+      // Atualizar perfil do usuário
+      await updateProfile(user, {
+        displayName: formData.name
+      })
+
+      // Criar objeto do usuário
+      const newUser = {
+        id: user.uid,
+        name: formData.name,
+        email: formData.email,
+        phone: formData.phone,
+        type: 'user',
+        createdAt: new Date().toISOString()
+      }
+
+      // Salvar no Firestore
+      await userService.create(newUser);
+
+      // Salvar o ID do usuário logado no localStorage
+      localStorage.setItem("currentUserId", user.uid);
+      
+      alert('Cadastro realizado com sucesso!')
+      onRegister(newUser)
+    } catch (error) {
+      console.error('Erro no cadastro:', error)
+      let errorMessage = 'Erro ao criar conta. Tente novamente.'
+      
+      switch (error.code) {
+        case 'auth/email-already-in-use':
+          errorMessage = 'Este e-mail já está em uso.'
+          break
+        case 'auth/invalid-email':
+          errorMessage = 'E-mail inválido.'
+          break
+        case 'auth/weak-password':
+          errorMessage = 'A senha é muito fraca.'
+          break
+      }
+      
+      setError(errorMessage)
+    } finally {
       setLoading(false)
-      return
     }
-
-    // Verificar se o email já existe
-    const users = JSON.parse(localStorage.getItem('users') || '[]')
-    if (users.find(u => u.email === formData.email)) {
-      alert('Este email já está cadastrado!')
-      setLoading(false)
-      return
-    }
-
-    // Criar novo usuário
-    const newUser = {
-      id: Date.now(),
-      name: formData.name,
-      email: formData.email,
-      phone: formData.phone,
-      password: formData.password,
-      type: 'user',
-      createdAt: new Date().toISOString()
-    }
-
-    users.push(newUser)
-    localStorage.setItem('users', JSON.stringify(users))
-    localStorage.setItem('currentUser', JSON.stringify(newUser))
-    
-    alert('Cadastro realizado com sucesso!')
-    onRegister(newUser)
-    setLoading(false)
   }
 
   return (
@@ -158,4 +174,3 @@ export default function UserRegister({ onBack, onRegister }) {
     </div>
   )
 }
-

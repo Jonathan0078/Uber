@@ -8,20 +8,41 @@ import { Label } from '@/components/ui/label'
 import { LogOut, Car, MapPin, Clock, Star, DollarSign, Send, CheckCircle } from 'lucide-react'
 import { rideRequestService, driverService } from '../services/firestoreService'
 
-export default function DriverDashboard({ driver, onLogout }) {
-  const [isAvailable, setIsAvailable] = useState(driver.available || false)
-  const [rideRequests, setRideRequests] = useState([])
-  const [currentRide, setCurrentRide] = useState(null)
-  const [earnings, setEarnings] = useState(0)
-  const [proposedPrices, setProposedPrices] = useState({})
+export default function DriverDashboard({ onLogout }) {
+
+  const [rideRequests, setRideRequests] = useState([]);
+  const [currentRide, setCurrentRide] = useState(null);
+  const [earnings, setEarnings] = useState(0);
+  const [proposedPrices, setProposedPrices] = useState({});
+  const [driver, setDriver] = useState(null); // Adicionar estado para o objeto driver
 
   useEffect(() => {
+    const driverId = localStorage.getItem("currentDriverId");
+    if (!driverId) {
+      onLogout();
+      return;
+    }
+
+    const fetchDriverData = async () => {
+      const driverData = await driverService.getById(driverId);
+      if (driverData) {
+        setDriver(driverData); // Definir o objeto driver no estado
+        setIsAvailable(driverData.available || false);
+      } else {
+        onLogout();
+      }
+    };
+
+    fetchDriverData();
+
     // Atualizar disponibilidade no Firestore
     const updateAvailability = async () => {
-      try {
-        await driverService.update(driver.id, { available: isAvailable });
-      } catch (error) {
-        console.error('Erro ao atualizar disponibilidade:', error);
+      if (driver) { // Somente atualiza se o objeto driver estiver carregado
+        try {
+          await driverService.update(driver.id, { available: isAvailable });
+        } catch (error) {
+          console.error("Erro ao atualizar disponibilidade:", error);
+        }
       }
     };
 
@@ -31,13 +52,13 @@ export default function DriverDashboard({ driver, onLogout }) {
     let unsubscribe = null;
     
     if (isAvailable && driver?.id) {
-      unsubscribe = rideRequestService.onDriverRequestsChange(driver.id, (requests) => {
-        // Filtrar solicitações pendentes
-        const waitingRequests = requests.filter(r => r.status === 'waitingPrice');
+      unsubscribe = rideRequestService.onPendingRequestsChange((requests) => {
+        // Filtrar solicitações pendentes que não foram rejeitadas pelo motorista
+        const waitingRequests = requests.filter(r => r.status === "waitingPrice" && r.driverId === driver.id);
         setRideRequests(waitingRequests);
         
         // Verificar corridas aceitas
-        const acceptedRides = requests.filter(r => r.status === 'accepted');
+        const acceptedRides = requests.filter(r => r.status === "accepted" && r.driverId === driver.id);
         if (acceptedRides.length > 0 && !currentRide) {
           setCurrentRide(acceptedRides[0]);
         }
@@ -49,7 +70,7 @@ export default function DriverDashboard({ driver, onLogout }) {
         unsubscribe();
       }
     };
-  }, [isAvailable, driver?.id, currentRide])
+  }, [isAvailable, currentRide, onLogout, driver]); // Adicionar driver às dependências
 
   const handlePriceChange = (requestId, price) => {
     setProposedPrices(prev => ({
@@ -146,8 +167,8 @@ export default function DriverDashboard({ driver, onLogout }) {
               <Car className="w-5 h-5 text-green-600" />
             </div>
             <div>
-              <h1 className="font-semibold text-gray-900">Olá, {driver.name}</h1>
-              <p className="text-sm text-gray-500">{driver.vehicle} - {driver.plate}</p>
+              <h1 className="font-semibold text-gray-900">Olá, {driver?.name}</h1>
+              <p className="text-sm text-gray-500">{driver?.vehicle} - {driver?.plate}</p>
             </div>
           </div>
           <Button variant="ghost" size="sm" onClick={onLogout}>
@@ -187,7 +208,7 @@ export default function DriverDashboard({ driver, onLogout }) {
               <div className="flex items-center space-x-2">
                 <Star className="w-4 h-4 text-yellow-500" />
                 <div>
-                  <p className="text-2xl font-bold">{driver.rating || '4.8'}</p>
+                  <p className="text-2xl font-bold">{driver?.rating || '4.8'}</p>
                   <p className="text-xs text-gray-500">Avaliação</p>
                 </div>
               </div>
@@ -198,7 +219,7 @@ export default function DriverDashboard({ driver, onLogout }) {
               <div className="flex items-center space-x-2">
                 <Car className="w-4 h-4 text-blue-500" />
                 <div>
-                  <p className="text-2xl font-bold">{driver.trips || 0}</p>
+                  <p className="text-2xl font-bold">{driver?.trips || 0}</p>
                   <p className="text-xs text-gray-500">Corridas</p>
                 </div>
               </div>

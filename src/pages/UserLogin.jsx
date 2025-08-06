@@ -30,18 +30,21 @@ export default function UserLogin({ onBack, onLogin, onRegister }) {
         createdAt: new Date().toISOString()
       }
       
-      // Salvar no localStorage (temporário)
-      const users = JSON.parse(localStorage.getItem('users') || '[]')
-      const existingUserIndex = users.findIndex(u => u.id === userData.id)
+      // Salvar no Firestore
+      await userService.create(userData);
       
-      if (existingUserIndex >= 0) {
-        users[existingUserIndex] = { ...users[existingUserIndex], ...userData }
+      // Buscar no Firestore se o usuário já existe
+      const existingUser = await userService.getById(user.uid);
+      if (existingUser) {
+        // Atualizar dados do usuário no Firestore
+        await userService.update(user.uid, userData);
       } else {
-        users.push(userData)
+        // Criar novo usuário no Firestore
+        await userService.create(userData);
       }
-      
-      localStorage.setItem('users', JSON.stringify(users))
-      localStorage.setItem('currentUser', JSON.stringify(userData))
+
+      // Salvar o ID do usuário logado no localStorage
+      localStorage.setItem("currentUserId", user.uid);
       
       onLogin(userData)
     } catch (error) {
