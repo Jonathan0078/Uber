@@ -23,13 +23,21 @@ export default function DriverDashboard({ driver, onLogout }) {
     if (isAvailable) {
       const interval = setInterval(() => {
         const rides = JSON.parse(localStorage.getItem('rides') || '[]')
-        const pendingRides = rides.filter(r => r.status === 'matched' && r.driverId === driver.id)
-        setRideRequests(pendingRides)
+        const pendingRides = rides.filter(r => 
+          r.status === 'inProgress' && 
+          r.driverId === driver.id && 
+          !rideRequests.find(req => req.id === r.id) &&
+          r.id !== currentRide?.id
+        )
+        
+        if (pendingRides.length > 0) {
+          setRideRequests(prev => [...prev, ...pendingRides])
+        }
       }, 2000)
 
       return () => clearInterval(interval)
     }
-  }, [isAvailable, driver.id])
+  }, [isAvailable, driver.id, rideRequests, currentRide])
 
   const acceptRide = (ride) => {
     setCurrentRide(ride)
@@ -179,38 +187,48 @@ export default function DriverDashboard({ driver, onLogout }) {
               <CardTitle className="text-green-900">Nova solicitação de corrida!</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {rideRequests.map((ride) => (
-                <div key={ride.id} className="space-y-3">
-                  <div className="flex items-start space-x-2">
-                    <MapPin className="w-4 h-4 text-green-600 mt-1" />
-                    <div>
-                      <p className="font-medium text-green-900">Destino</p>
-                      <p className="text-sm text-green-700">{ride.destination}</p>
+              {rideRequests.map((ride) => {
+                // Buscar informações do usuário
+                const users = JSON.parse(localStorage.getItem('users') || '[]')
+                const user = users.find(u => u.id === ride.userId) || { name: 'Usuário', phone: 'N/A' }
+                
+                return (
+                  <div key={ride.id} className="space-y-3 p-3 bg-white rounded-lg border">
+                    <div className="flex items-start space-x-2">
+                      <MapPin className="w-4 h-4 text-green-600 mt-1" />
+                      <div className="flex-1">
+                        <p className="font-medium text-green-900">Passageiro: {user.name}</p>
+                        <p className="text-sm text-green-700">Telefone: {user.phone}</p>
+                        <p className="text-sm text-green-700">Destino: {ride.destination}</p>
+                        <p className="text-sm text-green-600">
+                          Pagamento: {ride.paymentMethod === 'pix' ? `PIX - ${ride.pixKey}` : 'Dinheiro'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Clock className="w-4 h-4 text-green-600" />
+                      <p className="text-sm text-green-700">
+                        Solicitado há {Math.floor((Date.now() - new Date(ride.createdAt).getTime()) / 60000)} min
+                      </p>
+                    </div>
+                    <div className="flex space-x-2">
+                      <Button 
+                        onClick={() => acceptRide(ride)}
+                        className="flex-1 bg-green-600 hover:bg-green-700"
+                      >
+                        Aceitar
+                      </Button>
+                      <Button 
+                        onClick={() => rejectRide(ride.id)}
+                        variant="outline"
+                        className="flex-1"
+                      >
+                        Recusar
+                      </Button>
                     </div>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <Clock className="w-4 h-4 text-green-600" />
-                    <p className="text-sm text-green-700">
-                      Solicitado há {Math.floor((Date.now() - new Date(ride.createdAt).getTime()) / 60000)} min
-                    </p>
-                  </div>
-                  <div className="flex space-x-2">
-                    <Button 
-                      onClick={() => acceptRide(ride)}
-                      className="flex-1 bg-green-600 hover:bg-green-700"
-                    >
-                      Aceitar
-                    </Button>
-                    <Button 
-                      onClick={() => rejectRide(ride.id)}
-                      variant="outline"
-                      className="flex-1"
-                    >
-                      Recusar
-                    </Button>
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </CardContent>
           </Card>
         )}

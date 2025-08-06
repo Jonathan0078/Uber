@@ -18,21 +18,16 @@ export default function UserDashboard({ user, onLogout }) {
 
   // Ruas de Rio Pardo para seleção
   const rioPardoStreets = [
-    'Centro de Rio Pardo',
-    'Rua Marechal Deodoro',
-    'Rua General Osório', 
-    'Rua Coronel Vicente',
+    'Rua Júlio de Castilhos (Rua da Ladeira)',
+    'Rua Andrade Neves',
+    'Rua General Osório',
     'Rua Barão do Rio Branco',
-    'Rua Júlio de Castilhos',
-    'Rua Andradas',
+    'Rua Marechal Deodoro',
+    'Rua Coronel Vicente',
     'Rua Voluntários da Pátria',
     'Rua Tiradentes',
     'Rua Benjamin Constant',
-    'Avenida Independência',
-    'Rua Flores da Cunha',
-    'Rua Duque de Caxias',
-    'Rua Getúlio Vargas',
-    'Rua Borges de Medeiros'
+    'Avenida Independência'
   ]
 
   useEffect(() => {
