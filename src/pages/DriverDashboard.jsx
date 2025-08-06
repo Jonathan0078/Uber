@@ -3,13 +3,16 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
-import { LogOut, Car, MapPin, Clock, Star, DollarSign } from 'lucide-react'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { LogOut, Car, MapPin, Clock, Star, DollarSign, Send, CheckCircle } from 'lucide-react'
 
 export default function DriverDashboard({ driver, onLogout }) {
   const [isAvailable, setIsAvailable] = useState(driver.available || false)
   const [rideRequests, setRideRequests] = useState([])
   const [currentRide, setCurrentRide] = useState(null)
   const [earnings, setEarnings] = useState(0)
+  const [proposedPrices, setProposedPrices] = useState({})
 
   useEffect(() => {
     // Atualizar disponibilidade no localStorage
@@ -19,58 +22,115 @@ export default function DriverDashboard({ driver, onLogout }) {
     )
     localStorage.setItem('drivers', JSON.stringify(updatedDrivers))
 
-    // Simular recebimento de solicitações de corrida
+    // Verificar solicitações de corrida
     if (isAvailable) {
       const interval = setInterval(() => {
-        const rides = JSON.parse(localStorage.getItem('rides') || '[]')
-        const pendingRides = rides.filter(r => 
-          r.status === 'inProgress' && 
+        const requests = JSON.parse(localStorage.getItem('rideRequests') || '[]')
+        const driverRequests = requests.filter(r => 
           r.driverId === driver.id && 
-          !rideRequests.find(req => req.id === r.id) &&
-          r.id !== currentRide?.id
+          (r.status === 'waitingPrice' || r.status === 'accepted')
         )
         
-        if (pendingRides.length > 0) {
-          setRideRequests(prev => [...prev, ...pendingRides])
+        // Atualizar solicitações pendentes
+        const waitingRequests = driverRequests.filter(r => r.status === 'waitingPrice')
+        setRideRequests(waitingRequests)
+        
+        // Verificar corridas aceitas
+        const acceptedRides = driverRequests.filter(r => r.status === 'accepted')
+        if (acceptedRides.length > 0 && !currentRide) {
+          setCurrentRide(acceptedRides[0])
         }
-      }, 2000)
+      }, 1000)
 
       return () => clearInterval(interval)
     }
-  }, [isAvailable, driver.id, rideRequests, currentRide])
+  }, [isAvailable, driver.id, currentRide])
 
-  const acceptRide = (ride) => {
-    setCurrentRide(ride)
-    setRideRequests(rideRequests.filter(r => r.id !== ride.id))
+  const handlePriceChange = (requestId, price) => {
+    setProposedPrices(prev => ({
+      ...prev,
+      [requestId]: price
+    }))
+  }
+
+  const sendPriceProposal = (request) => {
+    const price = proposedPrices[request.id]
     
-    // Atualizar status da corrida
-    const rides = JSON.parse(localStorage.getItem('rides') || '[]')
-    const updatedRides = rides.map(r => 
-      r.id === ride.id ? { ...r, status: 'accepted' } : r
+    if (!price || price <= 0) {
+      alert('Por favor, insira um preço válido!')
+      return
+    }
+
+    // Atualizar a solicitação com a proposta de preço
+    const requests = JSON.parse(localStorage.getItem('rideRequests') || '[]')
+    const updatedRequests = requests.map(r => 
+      r.id === request.id 
+        ? { ...r, status: 'priceProposed', proposedPrice: parseFloat(price) }
+        : r
     )
-    localStorage.setItem('rides', JSON.stringify(updatedRides))
+    localStorage.setItem('rideRequests', JSON.stringify(updatedRequests))
+    
+    // Remover da lista local
+    setRideRequests(prev => prev.filter(r => r.id !== request.id))
+    
+    // Limpar o preço proposto
+    setProposedPrices(prev => {
+      const newPrices = { ...prev }
+      delete newPrices[request.id]
+      return newPrices
+    })
+    
+    alert(`Proposta de R$ ${price} enviada para ${request.userName}!`)
+  }
+
+  const rejectRide = (requestId) => {
+    // Atualizar status da solicitação
+    const requests = JSON.parse(localStorage.getItem('rideRequests') || '[]')
+    const updatedRequests = requests.map(r => 
+      r.id === requestId ? { ...r, status: 'rejected' } : r
+    )
+    localStorage.setItem('rideRequests', JSON.stringify(updatedRequests))
+    
+    // Remover da lista local
+    setRideRequests(prev => prev.filter(r => r.id !== requestId))
+  }
+
+  const startRide = () => {
+    if (currentRide) {
+      // Atualizar status da corrida
+      const requests = JSON.parse(localStorage.getItem('rideRequests') || '[]')
+      const updatedRequests = requests.map(r => 
+        r.id === currentRide.id ? { ...r, status: 'inProgress' } : r
+      )
+      localStorage.setItem('rideRequests', JSON.stringify(updatedRequests))
+      
+      setCurrentRide(prev => ({ ...prev, status: 'inProgress' }))
+    }
   }
 
   const completeRide = () => {
     if (currentRide) {
-      // Simular ganho da corrida
-      const rideEarning = Math.floor(Math.random() * 20) + 10 // R$ 10-30
+      // Adicionar ganho da corrida
+      const rideEarning = currentRide.acceptedPrice || currentRide.proposedPrice || 0
       setEarnings(prev => prev + rideEarning)
       
       // Atualizar estatísticas do motorista
       const drivers = JSON.parse(localStorage.getItem('drivers') || '[]')
       const updatedDrivers = drivers.map(d => 
-        d.id === driver.id ? { ...d, trips: d.trips + 1 } : d
+        d.id === driver.id ? { ...d, trips: (d.trips || 0) + 1 } : d
       )
       localStorage.setItem('drivers', JSON.stringify(updatedDrivers))
       
+      // Marcar corrida como concluída
+      const requests = JSON.parse(localStorage.getItem('rideRequests') || '[]')
+      const updatedRequests = requests.map(r => 
+        r.id === currentRide.id ? { ...r, status: 'completed' } : r
+      )
+      localStorage.setItem('rideRequests', JSON.stringify(updatedRequests))
+      
       setCurrentRide(null)
-      alert(`Corrida concluída! Você ganhou R$ ${rideEarning},00`)
+      alert(`Corrida concluída! Você ganhou R$ ${rideEarning.toFixed(2)}`)
     }
-  }
-
-  const rejectRide = (rideId) => {
-    setRideRequests(rideRequests.filter(r => r.id !== rideId))
   }
 
   return (
@@ -124,7 +184,7 @@ export default function DriverDashboard({ driver, onLogout }) {
               <div className="flex items-center space-x-2">
                 <Star className="w-4 h-4 text-yellow-500" />
                 <div>
-                  <p className="text-2xl font-bold">{driver.rating}</p>
+                  <p className="text-2xl font-bold">{driver.rating || '4.8'}</p>
                   <p className="text-xs text-gray-500">Avaliação</p>
                 </div>
               </div>
@@ -135,7 +195,7 @@ export default function DriverDashboard({ driver, onLogout }) {
               <div className="flex items-center space-x-2">
                 <Car className="w-4 h-4 text-blue-500" />
                 <div>
-                  <p className="text-2xl font-bold">{driver.trips}</p>
+                  <p className="text-2xl font-bold">{driver.trips || 0}</p>
                   <p className="text-xs text-gray-500">Corridas</p>
                 </div>
               </div>
@@ -152,7 +212,7 @@ export default function DriverDashboard({ driver, onLogout }) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold text-green-600">R$ {earnings},00</p>
+            <p className="text-3xl font-bold text-green-600">R$ {earnings.toFixed(2)}</p>
           </CardContent>
         </Card>
 
@@ -160,75 +220,124 @@ export default function DriverDashboard({ driver, onLogout }) {
         {currentRide && (
           <Card className="border-blue-200 bg-blue-50">
             <CardHeader>
-              <CardTitle className="text-blue-900">Corrida em andamento</CardTitle>
+              <CardTitle className="text-blue-900">
+                {currentRide.status === 'inProgress' ? 'Corrida em andamento' : 'Corrida aceita'}
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="flex items-start space-x-2">
-                <MapPin className="w-4 h-4 text-blue-600 mt-1" />
-                <div>
-                  <p className="font-medium text-blue-900">Destino</p>
-                  <p className="text-sm text-blue-700">{currentRide.destination}</p>
+              <div className="p-3 bg-white border border-blue-200 rounded-lg">
+                <div className="flex items-start space-x-2">
+                  <MapPin className="w-4 h-4 text-blue-600 mt-1" />
+                  <div className="flex-1">
+                    <p className="font-medium text-blue-900">Passageiro: {currentRide.userName}</p>
+                    <p className="text-sm text-blue-700">Telefone: {currentRide.userPhone}</p>
+                    <p className="text-sm text-blue-700">De: {currentRide.origin}</p>
+                    <p className="text-sm text-blue-700">Para: {currentRide.destination}</p>
+                    <p className="text-sm font-semibold text-green-700">
+                      Preço: R$ {(currentRide.acceptedPrice || currentRide.proposedPrice || 0).toFixed(2)}
+                    </p>
+                    <p className="text-sm text-blue-600">
+                      Pagamento: {currentRide.paymentMethod === 'pix' ? 'PIX' : 'Dinheiro'}
+                    </p>
+                  </div>
                 </div>
               </div>
-              <Button 
-                onClick={completeRide}
-                className="w-full bg-blue-600 hover:bg-blue-700"
-              >
-                Finalizar corrida
-              </Button>
+              
+              {currentRide.status === 'accepted' && (
+                <Button 
+                  onClick={startRide}
+                  className="w-full bg-blue-600 hover:bg-blue-700"
+                >
+                  Iniciar corrida
+                </Button>
+              )}
+              
+              {currentRide.status === 'inProgress' && (
+                <Button 
+                  onClick={completeRide}
+                  className="w-full bg-green-600 hover:bg-green-700"
+                >
+                  <CheckCircle className="w-4 h-4 mr-2" />
+                  Finalizar corrida
+                </Button>
+              )}
             </CardContent>
           </Card>
         )}
 
-        {/* Solicitações de Corrida */}
+        {/* Solicitações de Corrida com Proposta de Preço */}
         {isAvailable && rideRequests.length > 0 && (
-          <Card className="border-green-200 bg-green-50">
+          <Card className="border-orange-200 bg-orange-50">
             <CardHeader>
-              <CardTitle className="text-green-900">Nova solicitação de corrida!</CardTitle>
+              <CardTitle className="text-orange-900">Solicitações de Corrida</CardTitle>
+              <CardDescription className="text-orange-700">
+                Analise as solicitações e envie sua proposta de preço
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {rideRequests.map((ride) => {
-                // Buscar informações do usuário
-                const users = JSON.parse(localStorage.getItem('users') || '[]')
-                const user = users.find(u => u.id === ride.userId) || { name: 'Usuário', phone: 'N/A' }
-                
-                return (
-                  <div key={ride.id} className="space-y-3 p-3 bg-white rounded-lg border">
-                    <div className="flex items-start space-x-2">
-                      <MapPin className="w-4 h-4 text-green-600 mt-1" />
-                      <div className="flex-1">
-                        <p className="font-medium text-green-900">Passageiro: {user.name}</p>
-                        <p className="text-sm text-green-700">Telefone: {user.phone}</p>
-                        <p className="text-sm text-green-700">Destino: {ride.destination}</p>
-                        <p className="text-sm text-green-600">
-                          Pagamento: {ride.paymentMethod === 'pix' ? `PIX - ${ride.pixKey}` : 'Dinheiro'}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Clock className="w-4 h-4 text-green-600" />
-                      <p className="text-sm text-green-700">
-                        Solicitado há {Math.floor((Date.now() - new Date(ride.createdAt).getTime()) / 60000)} min
+              {rideRequests.map((request) => (
+                <div key={request.id} className="space-y-3 p-4 bg-white rounded-lg border border-orange-200">
+                  <div className="flex items-start space-x-2">
+                    <MapPin className="w-4 h-4 text-orange-600 mt-1" />
+                    <div className="flex-1">
+                      <p className="font-medium text-orange-900">Passageiro: {request.userName}</p>
+                      <p className="text-sm text-orange-700">Telefone: {request.userPhone}</p>
+                      <p className="text-sm text-orange-700">
+                        <strong>De:</strong> {request.origin}
+                      </p>
+                      <p className="text-sm text-orange-700">
+                        <strong>Para:</strong> {request.destination}
                       </p>
                     </div>
-                    <div className="flex space-x-2">
-                      <Button 
-                        onClick={() => acceptRide(ride)}
-                        className="flex-1 bg-green-600 hover:bg-green-700"
-                      >
-                        Aceitar
-                      </Button>
-                      <Button 
-                        onClick={() => rejectRide(ride.id)}
-                        variant="outline"
+                  </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    <Clock className="w-4 h-4 text-orange-600" />
+                    <p className="text-sm text-orange-700">
+                      Solicitado há {Math.floor((Date.now() - new Date(request.createdAt).getTime()) / 60000)} min
+                    </p>
+                  </div>
+
+                  {/* Campo para inserir preço */}
+                  <div className="space-y-2">
+                    <Label htmlFor={`price-${request.id}`} className="text-orange-900">
+                      Qual o preço da corrida?
+                    </Label>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-lg font-semibold text-orange-900">R$</span>
+                      <Input
+                        id={`price-${request.id}`}
+                        type="number"
+                        step="0.01"
+                        min="1"
+                        placeholder="0,00"
+                        value={proposedPrices[request.id] || ''}
+                        onChange={(e) => handlePriceChange(request.id, e.target.value)}
                         className="flex-1"
-                      >
-                        Recusar
-                      </Button>
+                      />
                     </div>
                   </div>
-                )
-              })}
+
+                  {/* Botões de ação */}
+                  <div className="flex space-x-2">
+                    <Button 
+                      onClick={() => sendPriceProposal(request)}
+                      disabled={!proposedPrices[request.id] || proposedPrices[request.id] <= 0}
+                      className="flex-1 bg-orange-600 hover:bg-orange-700"
+                    >
+                      <Send className="w-4 h-4 mr-2" />
+                      Enviar Proposta
+                    </Button>
+                    <Button 
+                      onClick={() => rejectRide(request.id)}
+                      variant="outline"
+                      className="flex-1 border-red-300 text-red-700 hover:bg-red-50"
+                    >
+                      Recusar
+                    </Button>
+                  </div>
+                </div>
+              ))}
             </CardContent>
           </Card>
         )}

@@ -5,16 +5,19 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
-import { LogOut, MapPin, Navigation, Clock, User, Star, Car } from 'lucide-react'
+import { LogOut, MapPin, Navigation, Clock, User, Star, Car, DollarSign, CheckCircle, XCircle } from 'lucide-react'
 
 export default function UserDashboard({ user, onLogout }) {
   const [currentLocation, setCurrentLocation] = useState(null)
+  const [originStreet, setOriginStreet] = useState('')
   const [destination, setDestination] = useState('')
-  const [rideStatus, setRideStatus] = useState('idle') // idle, requesting, matched, inProgress
+  const [rideStatus, setRideStatus] = useState('idle') // idle, requesting, waitingPrice, priceReceived, matched, inProgress
   const [availableDrivers, setAvailableDrivers] = useState([])
   const [selectedDriver, setSelectedDriver] = useState(null)
+  const [driverPrice, setDriverPrice] = useState(null)
   const [paymentMethod, setPaymentMethod] = useState('')
   const [loading, setLoading] = useState(false)
+  const [rideRequests, setRideRequests] = useState([])
 
   // Ruas de Rio Pardo para seleção
   const rioPardoStreets = [
@@ -56,11 +59,31 @@ export default function UserDashboard({ user, onLogout }) {
         lng: -52.3789
       })
     }
-  }, [])
+
+    // Verificar se há propostas de preço dos motoristas
+    const interval = setInterval(() => {
+      const requests = JSON.parse(localStorage.getItem('rideRequests') || '[]')
+      const userRequests = requests.filter(r => r.userId === user.id && r.status === 'priceProposed')
+      
+      if (userRequests.length > 0 && rideStatus === 'waitingPrice') {
+        const request = userRequests[0]
+        setDriverPrice(request.proposedPrice)
+        setSelectedDriver(request.driver)
+        setRideStatus('priceReceived')
+      }
+    }, 1000)
+
+    return () => clearInterval(interval)
+  }, [user.id, rideStatus])
 
   const requestRide = async () => {
-    if (!destination.trim()) {
-      alert('Por favor, selecione um destino!')
+    if (!originStreet.trim() || !destination.trim()) {
+      alert('Por favor, selecione a rua de origem e destino!')
+      return
+    }
+
+    if (originStreet === destination) {
+      alert('A rua de origem e destino não podem ser iguais!')
       return
     }
 
@@ -122,27 +145,55 @@ export default function UserDashboard({ user, onLogout }) {
 
   const selectDriver = (driver) => {
     setSelectedDriver(driver)
-    setRideStatus('matched')
+    setRideStatus('waitingPrice')
+    
+    // Criar solicitação de corrida para o motorista
+    const rideRequest = {
+      id: Date.now(),
+      userId: user.id,
+      userName: user.name,
+      userPhone: user.phone,
+      driverId: driver.id,
+      driver: driver,
+      origin: originStreet,
+      destination: destination,
+      status: 'waitingPrice',
+      createdAt: new Date().toISOString()
+    }
+    
+    const requests = JSON.parse(localStorage.getItem('rideRequests') || '[]')
+    requests.push(rideRequest)
+    localStorage.setItem('rideRequests', JSON.stringify(requests))
   }
 
-  const confirmRide = () => {
+  const acceptPrice = () => {
     if (!paymentMethod) {
       alert('Por favor, selecione uma forma de pagamento!')
       return
     }
 
-    setRideStatus('inProgress')
+    setRideStatus('matched')
+    
+    // Atualizar status da solicitação
+    const requests = JSON.parse(localStorage.getItem('rideRequests') || '[]')
+    const updatedRequests = requests.map(r => 
+      r.userId === user.id && r.status === 'priceProposed' 
+        ? { ...r, status: 'accepted', paymentMethod: paymentMethod, acceptedPrice: driverPrice }
+        : r
+    )
+    localStorage.setItem('rideRequests', JSON.stringify(updatedRequests))
     
     // Criar registro da corrida
     const ride = {
       id: Date.now(),
       userId: user.id,
       driverId: selectedDriver.id,
-      origin: currentLocation,
+      origin: originStreet,
       destination: destination,
+      price: driverPrice,
       paymentMethod: paymentMethod,
       pixKey: paymentMethod === 'pix' ? selectedDriver.pixKey : null,
-      status: 'inProgress',
+      status: 'accepted',
       createdAt: new Date().toISOString()
     }
     
@@ -151,11 +202,52 @@ export default function UserDashboard({ user, onLogout }) {
     localStorage.setItem('rides', JSON.stringify(rides))
   }
 
+  const rejectPrice = () => {
+    // Atualizar status da solicitação
+    const requests = JSON.parse(localStorage.getItem('rideRequests') || '[]')
+    const updatedRequests = requests.map(r => 
+      r.userId === user.id && r.status === 'priceProposed' 
+        ? { ...r, status: 'rejected' }
+        : r
+    )
+    localStorage.setItem('rideRequests', JSON.stringify(updatedRequests))
+    
+    // Voltar para seleção de motoristas
+    setRideStatus('requesting')
+    setSelectedDriver(null)
+    setDriverPrice(null)
+    setPaymentMethod('')
+  }
+
+  const startRide = () => {
+    setRideStatus('inProgress')
+    
+    // Atualizar status da corrida
+    const rides = JSON.parse(localStorage.getItem('rides') || '[]')
+    const updatedRides = rides.map(r => 
+      r.userId === user.id && r.status === 'accepted' 
+        ? { ...r, status: 'inProgress' }
+        : r
+    )
+    localStorage.setItem('rides', JSON.stringify(updatedRides))
+  }
+
   const cancelRide = () => {
+    // Cancelar solicitações pendentes
+    const requests = JSON.parse(localStorage.getItem('rideRequests') || '[]')
+    const updatedRequests = requests.map(r => 
+      r.userId === user.id && (r.status === 'waitingPrice' || r.status === 'priceProposed')
+        ? { ...r, status: 'cancelled' }
+        : r
+    )
+    localStorage.setItem('rideRequests', JSON.stringify(updatedRequests))
+    
     setRideStatus('idle')
     setSelectedDriver(null)
     setAvailableDrivers([])
+    setDriverPrice(null)
     setPaymentMethod('')
+    setOriginStreet('')
     setDestination('')
   }
 
@@ -163,8 +255,12 @@ export default function UserDashboard({ user, onLogout }) {
     switch (rideStatus) {
       case 'requesting':
         return 'Procurando motoristas...'
+      case 'waitingPrice':
+        return `Aguardando proposta de preço de ${selectedDriver?.name}...`
+      case 'priceReceived':
+        return `${selectedDriver?.name} enviou uma proposta de preço`
       case 'matched':
-        return `Motorista selecionado: ${selectedDriver?.name}`
+        return `Corrida confirmada com ${selectedDriver?.name}`
       case 'inProgress':
         return 'Corrida em andamento'
       default:
@@ -234,13 +330,27 @@ export default function UserDashboard({ user, onLogout }) {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
+              <Label htmlFor="origin">De onde você está?</Label>
+              <Select value={originStreet} onValueChange={setOriginStreet} disabled={rideStatus !== 'idle'}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione sua rua atual" />
+                </SelectTrigger>
+                <SelectContent>
+                  {rioPardoStreets.map((street, index) => (
+                    <SelectItem key={index} value={street}>{street}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="destination">Para onde você quer ir?</Label>
               <Select value={destination} onValueChange={setDestination} disabled={rideStatus !== 'idle'}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione o destino" />
                 </SelectTrigger>
                 <SelectContent>
-                  {rioPardoStreets.map((street, index) => (
+                  {rioPardoStreets.filter(street => street !== originStreet).map((street, index) => (
                     <SelectItem key={index} value={street}>{street}</SelectItem>
                   ))}
                 </SelectContent>
@@ -251,13 +361,13 @@ export default function UserDashboard({ user, onLogout }) {
               <Button 
                 onClick={requestRide}
                 className="w-full bg-blue-600 hover:bg-blue-700"
-                disabled={loading || !destination.trim()}
+                disabled={loading || !originStreet.trim() || !destination.trim()}
               >
                 {loading ? 'Procurando...' : 'Buscar Motoristas'}
               </Button>
             )}
 
-            {rideStatus !== 'idle' && (
+            {rideStatus !== 'idle' && rideStatus !== 'inProgress' && (
               <div className="space-y-3">
                 <div className="flex items-center space-x-2 text-sm">
                   <Clock className="w-4 h-4 text-blue-600" />
@@ -281,7 +391,7 @@ export default function UserDashboard({ user, onLogout }) {
           <Card>
             <CardHeader>
               <CardTitle>Motoristas Disponíveis</CardTitle>
-              <CardDescription>Selecione um motorista para sua corrida</CardDescription>
+              <CardDescription>Selecione um motorista para solicitar o preço da corrida</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               {availableDrivers.map((driver) => (
@@ -316,29 +426,68 @@ export default function UserDashboard({ user, onLogout }) {
           </Card>
         )}
 
-        {/* Motorista Selecionado e Pagamento */}
-        {rideStatus === 'matched' && selectedDriver && (
-          <Card>
+        {/* Aguardando Proposta de Preço */}
+        {rideStatus === 'waitingPrice' && selectedDriver && (
+          <Card className="border-yellow-200 bg-yellow-50">
             <CardHeader>
-              <CardTitle className="text-green-700">Motorista Selecionado</CardTitle>
+              <CardTitle className="text-yellow-900">Aguardando Proposta</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="p-3 bg-white border border-yellow-200 rounded-lg">
+                <div className="flex items-start space-x-3">
+                  <div className="w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center">
+                    <Car className="w-5 h-5 text-yellow-600" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-yellow-900">{selectedDriver.name}</p>
+                    <p className="text-sm text-yellow-700">{selectedDriver.vehicle}</p>
+                    <p className="text-sm text-yellow-600">Placa: {selectedDriver.plate}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl mb-2">⏳</div>
+                <p className="text-sm text-yellow-700">O motorista está analisando sua solicitação e enviará o preço em breve</p>
+                <p className="text-xs text-yellow-600 mt-1">De: {originStreet}</p>
+                <p className="text-xs text-yellow-600">Para: {destination}</p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Proposta de Preço Recebida */}
+        {rideStatus === 'priceReceived' && selectedDriver && driverPrice && (
+          <Card className="border-green-200 bg-green-50">
+            <CardHeader>
+              <CardTitle className="text-green-900">Proposta de Preço Recebida</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+              <div className="p-3 bg-white border border-green-200 rounded-lg">
                 <div className="flex items-start space-x-3">
                   <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
                     <Car className="w-5 h-5 text-green-600" />
                   </div>
-                  <div>
+                  <div className="flex-1">
                     <p className="font-semibold text-green-900">{selectedDriver.name}</p>
                     <p className="text-sm text-green-700">{selectedDriver.vehicle}</p>
                     <p className="text-sm text-green-600">Placa: {selectedDriver.plate}</p>
                     <div className="flex items-center space-x-1 mt-1">
                       <Star className="w-3 h-3 text-yellow-500 fill-current" />
                       <span className="text-xs text-green-600">{selectedDriver.rating}</span>
-                      <span className="text-xs text-green-600">• {selectedDriver.eta}</span>
                     </div>
                   </div>
                 </div>
+              </div>
+
+              {/* Preço Proposto */}
+              <div className="p-4 bg-white border-2 border-green-300 rounded-lg text-center">
+                <div className="flex items-center justify-center space-x-2 mb-2">
+                  <DollarSign className="w-6 h-6 text-green-600" />
+                  <span className="text-3xl font-bold text-green-900">R$ {driverPrice}</span>
+                </div>
+                <p className="text-sm text-green-700">Preço proposto para a corrida</p>
+                <p className="text-xs text-green-600 mt-1">De: {originStreet}</p>
+                <p className="text-xs text-green-600">Para: {destination}</p>
               </div>
 
               {/* Opções de Pagamento */}
@@ -361,12 +510,73 @@ export default function UserDashboard({ user, onLogout }) {
                 </RadioGroup>
               </div>
 
+              {/* Botões de Ação */}
+              <div className="flex space-x-2">
+                <Button
+                  onClick={acceptPrice}
+                  disabled={!paymentMethod}
+                  className="flex-1 bg-green-600 hover:bg-green-700"
+                >
+                  <CheckCircle className="w-4 h-4 mr-2" />
+                  Aceitar R$ {driverPrice}
+                </Button>
+                <Button
+                  onClick={rejectPrice}
+                  variant="outline"
+                  className="flex-1 border-red-300 text-red-700 hover:bg-red-50"
+                >
+                  <XCircle className="w-4 h-4 mr-2" />
+                  Recusar
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Corrida Confirmada */}
+        {rideStatus === 'matched' && selectedDriver && (
+          <Card className="border-blue-200 bg-blue-50">
+            <CardHeader>
+              <CardTitle className="text-blue-900">Corrida Confirmada</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="p-3 bg-white border border-blue-200 rounded-lg">
+                <div className="flex items-start space-x-3">
+                  <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                    <Car className="w-5 h-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-blue-900">{selectedDriver.name}</p>
+                    <p className="text-sm text-blue-700">{selectedDriver.vehicle}</p>
+                    <p className="text-sm text-blue-600">Placa: {selectedDriver.plate}</p>
+                    <div className="flex items-center space-x-1 mt-1">
+                      <Star className="w-3 h-3 text-yellow-500 fill-current" />
+                      <span className="text-xs text-blue-600">{selectedDriver.rating}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-3 bg-white border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-700">
+                  <strong>Preço acordado:</strong> R$ {driverPrice}
+                </p>
+                <p className="text-sm text-blue-700">
+                  <strong>Pagamento:</strong> {paymentMethod === 'pix' ? `PIX - ${selectedDriver.pixKey}` : 'Dinheiro'}
+                </p>
+                <p className="text-sm text-blue-700">
+                  <strong>De:</strong> {originStreet}
+                </p>
+                <p className="text-sm text-blue-700">
+                  <strong>Para:</strong> {destination}
+                </p>
+              </div>
+
               <Button
-                onClick={confirmRide}
-                disabled={!paymentMethod}
-                className="w-full bg-green-600 hover:bg-green-700"
+                onClick={startRide}
+                className="w-full bg-blue-600 hover:bg-blue-700"
               >
-                Confirmar Corrida
+                Iniciar Corrida
               </Button>
             </CardContent>
           </Card>
@@ -376,17 +586,20 @@ export default function UserDashboard({ user, onLogout }) {
         {rideStatus === 'inProgress' && selectedDriver && (
           <Card>
             <CardHeader>
-              <CardTitle className="text-blue-700">Corrida em Andamento</CardTitle>
+              <CardTitle className="text-green-700">Corrida em Andamento</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <p className="text-sm text-blue-700">
+              <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                <p className="text-sm text-green-700">
+                  <strong>Preço:</strong> R$ {driverPrice}
+                </p>
+                <p className="text-sm text-green-700">
                   <strong>Destino:</strong> {destination}
                 </p>
-                <p className="text-sm text-blue-700">
+                <p className="text-sm text-green-700">
                   <strong>Motorista:</strong> {selectedDriver.name}
                 </p>
-                <p className="text-sm text-blue-700">
+                <p className="text-sm text-green-700">
                   <strong>Pagamento:</strong> {paymentMethod === 'pix' ? `PIX - ${selectedDriver.pixKey}` : 'Dinheiro'}
                 </p>
               </div>
