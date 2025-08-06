@@ -9,6 +9,7 @@ import { LogOut, Car, MapPin, Clock, Star, DollarSign, Send, CheckCircle } from 
 import { rideRequestService, driverService } from '../services/firestoreService'
 
 export default function DriverDashboard({ onLogout }) {
+  const [isAvailable, setIsAvailable] = useState(false);
 
   const [rideRequests, setRideRequests] = useState([]);
   const [currentRide, setCurrentRide] = useState(null);
