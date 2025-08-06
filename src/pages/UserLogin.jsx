@@ -46,8 +46,8 @@ export default function UserLogin({ onBack, onLogin, onRegister }) {
       
       onLogin(userData)
     } catch (error) {
-      console.error('Erro no login:', error)
-      setError('Erro ao fazer login com Google. Tente novamente.')
+      console.error('Erro no login do Google:', error);
+      setError('Erro ao fazer login com Google. Tente novamente.');
     } finally {
       setLoading(false)
     }
