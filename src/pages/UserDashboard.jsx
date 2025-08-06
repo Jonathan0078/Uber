@@ -119,55 +119,24 @@ export default function UserDashboard({ user, onLogout }) {
       // Buscar motoristas disponíveis no Firestore
       const availableDriversList = await driverService.getAvailable();
       
+      console.log('Motoristas disponíveis encontrados:', availableDriversList.length);
+      
       if (availableDriversList.length === 0) {
-        // Motoristas simulados caso não haja cadastrados
-        const mockDrivers = [
-          {
-            id: 'mock_1',
-            name: 'Carlos Silva',
-            vehicle: 'Honda Civic Branco',
-            plate: 'ABC-1234',
-            pixKey: 'carlos.silva@email.com',
-            distance: '2.1 km',
-            eta: '5 min',
-            rating: '4.8',
-            available: true
-          },
-          {
-            id: 'mock_2',
-            name: 'Maria Santos',
-            vehicle: 'Toyota Corolla Prata',
-            plate: 'DEF-5678',
-            pixKey: '(51) 99999-9999',
-            distance: '1.5 km',
-            eta: '3 min',
-            rating: '4.9',
-            available: true
-          },
-          {
-            id: 'mock_3',
-            name: 'João Oliveira',
-            vehicle: 'Chevrolet Onix Azul',
-            plate: 'GHI-9012',
-            pixKey: 'joao.oliveira@pix.com',
-            distance: '3.2 km',
-            eta: '7 min',
-            rating: '4.7',
-            available: true
-          }
-        ];
-        setAvailableDrivers(mockDrivers);
-      } else {
-        // Adicionar dados simulados de distância e tempo
-        const driversWithDistance = availableDriversList.map(driver => ({
-          ...driver,
-          distance: `${(Math.random() * 5 + 0.5).toFixed(1)} km`,
-          eta: `${Math.floor(Math.random() * 10 + 2)} min`,
-          rating: driver.rating || (Math.random() * 1 + 4).toFixed(1)
-        }));
-        setAvailableDrivers(driversWithDistance);
+        alert('Nenhum motorista disponível no momento. Tente novamente em alguns minutos.');
+        setLoading(false);
+        setRideStatus('idle');
+        return;
       }
       
+      // Adicionar dados simulados de distância e tempo para motoristas reais
+      const driversWithDistance = availableDriversList.map(driver => ({
+        ...driver,
+        distance: `${(Math.random() * 5 + 0.5).toFixed(1)} km`,
+        eta: `${Math.floor(Math.random() * 10 + 2)} min`,
+        rating: driver.rating || '4.8'
+      }));
+      
+      setAvailableDrivers(driversWithDistance);
       setLoading(false)
     } catch (error) {
       console.error('Erro ao buscar motoristas:', error);
