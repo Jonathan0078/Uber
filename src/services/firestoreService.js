@@ -10,7 +10,8 @@ import {
   orderBy, 
   onSnapshot,
   serverTimestamp,
-  getDoc
+  getDoc,
+  setDoc
 } from 'firebase/firestore';
 import { db } from '../firebase';
 
@@ -26,11 +27,17 @@ export const rideRequestService = {
   // Criar nova solicitação de corrida
   async create(rideData) {
     try {
+      // Se o ID do motorista não está na solicitação, não é válida
+      if (!rideData.driverId) {
+        throw new Error('ID do motorista é obrigatório');
+      }
+      
       const docRef = await addDoc(collection(db, COLLECTIONS.RIDE_REQUESTS), {
         ...rideData,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
+      console.log('Solicitação criada com ID:', docRef.id);
       return docRef.id;
     } catch (error) {
       console.error('Erro ao criar solicitação:', error);
@@ -138,15 +145,17 @@ export const rideRequestService = {
   onPendingRequestsChange(callback) {
     const q = query(
       collection(db, COLLECTIONS.RIDE_REQUESTS),
-      where('status', 'in', ['pending', 'waitingPrice']),
+      where('status', 'in', ['waitingPrice', 'priceProposed', 'accepted', 'inProgress']),
       orderBy('createdAt', 'desc')
     );
     
     return onSnapshot(q, (querySnapshot) => {
       const requests = querySnapshot.docs.map(doc => ({
         id: doc.id,
-        ...doc.data()
+        ...doc.data(),
+        createdAt: doc.data().createdAt?.toDate?.() || new Date()
       }));
+      console.log('Solicitações capturadas pelo listener:', requests.length);
       callback(requests);
     });
   }
@@ -156,11 +165,14 @@ export const rideRequestService = {
 export const userService = {
   async create(userData) {
     try {
-      const docRef = await addDoc(collection(db, COLLECTIONS.USERS), {
+      // Usar o ID do usuário como documento ID no Firestore
+      const docRef = doc(db, COLLECTIONS.USERS, userData.id);
+      await setDoc(docRef, {
         ...userData,
         createdAt: serverTimestamp()
       });
-      return docRef.id;
+      console.log('Usuário criado com ID:', userData.id);
+      return userData.id;
     } catch (error) {
       console.error('Erro ao criar usuário:', error);
       throw error;
@@ -200,11 +212,14 @@ export const userService = {
 export const driverService = {
   async create(driverData) {
     try {
-      const docRef = await addDoc(collection(db, COLLECTIONS.DRIVERS), {
+      // Usar o ID do motorista como documento ID no Firestore
+      const docRef = doc(db, COLLECTIONS.DRIVERS, driverData.id);
+      await setDoc(docRef, {
         ...driverData,
         createdAt: serverTimestamp()
       });
-      return docRef.id;
+      console.log('Motorista criado com ID:', driverData.id);
+      return driverData.id;
     } catch (error) {
       console.error('Erro ao criar motorista:', error);
       throw error;
