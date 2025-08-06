@@ -128,15 +128,14 @@ export default function UserDashboard({ user, onLogout }) {
         return;
       }
       
-      // Adicionar dados simulados de distância e tempo para motoristas reais
-      const driversWithDistance = availableDriversList.map(driver => ({
+      const driversWithDisplayData = availableDriversList.map(driver => ({
         ...driver,
-        distance: `${(Math.random() * 5 + 0.5).toFixed(1)} km`,
-        eta: `${Math.floor(Math.random() * 10 + 2)} min`,
+        distance: driver.distance || `${(Math.random() * 5 + 0.5).toFixed(1)} km`,
+        eta: driver.eta || `${Math.floor(Math.random() * 10 + 2)} min`,
         rating: driver.rating || '4.8'
       }));
       
-      setAvailableDrivers(driversWithDistance);
+      setAvailableDrivers(driversWithDisplayData);
       setLoading(false)
     } catch (error) {
       console.error('Erro ao buscar motoristas:', error);
