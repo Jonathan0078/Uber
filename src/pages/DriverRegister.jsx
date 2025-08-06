@@ -15,7 +15,8 @@ export default function DriverRegister({ onBack, onRegister }) {
     cnh: '',
     vehicle: '',
     plate: '',
-    year: ''
+    year: '',
+    pixKey: ''
   })
   const [loading, setLoading] = useState(false)
 
@@ -55,6 +56,7 @@ export default function DriverRegister({ onBack, onRegister }) {
       vehicle: formData.vehicle,
       plate: formData.plate,
       year: formData.year,
+      pixKey: formData.pixKey,
       available: true,
       rating: 5.0,
       trips: 0,
@@ -174,6 +176,18 @@ export default function DriverRegister({ onBack, onRegister }) {
                   type="number"
                   placeholder="2020"
                   value={formData.year}
+                  onChange={handleChange}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="pixKey">Chave PIX</Label>
+                <Input
+                  id="pixKey"
+                  name="pixKey"
+                  type="text"
+                  placeholder="Email, telefone ou chave aleatória"
+                  value={formData.pixKey}
                   onChange={handleChange}
                   required
                 />
