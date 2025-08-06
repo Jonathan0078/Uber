@@ -6,6 +6,7 @@ import { Switch } from '@/components/ui/switch'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { LogOut, Car, MapPin, Clock, Star, DollarSign, Send, CheckCircle } from 'lucide-react'
+import { rideRequestService, driverService } from '../services/firestoreService'
 
 export default function DriverDashboard({ driver, onLogout }) {
   const [isAvailable, setIsAvailable] = useState(driver.available || false)
@@ -15,36 +16,40 @@ export default function DriverDashboard({ driver, onLogout }) {
   const [proposedPrices, setProposedPrices] = useState({})
 
   useEffect(() => {
-    // Atualizar disponibilidade no localStorage
-    const drivers = JSON.parse(localStorage.getItem('drivers') || '[]')
-    const updatedDrivers = drivers.map(d => 
-      d.id === driver.id ? { ...d, available: isAvailable } : d
-    )
-    localStorage.setItem('drivers', JSON.stringify(updatedDrivers))
+    // Atualizar disponibilidade no Firestore
+    const updateAvailability = async () => {
+      try {
+        await driverService.update(driver.id, { available: isAvailable });
+      } catch (error) {
+        console.error('Erro ao atualizar disponibilidade:', error);
+      }
+    };
 
-    // Verificar solicitações de corrida
-    if (isAvailable) {
-      const interval = setInterval(() => {
-        const requests = JSON.parse(localStorage.getItem('rideRequests') || '[]')
-        const driverRequests = requests.filter(r => 
-          r.driverId === driver.id && 
-          (r.status === 'waitingPrice' || r.status === 'accepted')
-        )
-        
-        // Atualizar solicitações pendentes
-        const waitingRequests = driverRequests.filter(r => r.status === 'waitingPrice')
-        setRideRequests(waitingRequests)
+    updateAvailability();
+
+    // Escutar solicitações de corrida em tempo real
+    let unsubscribe = null;
+    
+    if (isAvailable && driver?.id) {
+      unsubscribe = rideRequestService.onDriverRequestsChange(driver.id, (requests) => {
+        // Filtrar solicitações pendentes
+        const waitingRequests = requests.filter(r => r.status === 'waitingPrice');
+        setRideRequests(waitingRequests);
         
         // Verificar corridas aceitas
-        const acceptedRides = driverRequests.filter(r => r.status === 'accepted')
+        const acceptedRides = requests.filter(r => r.status === 'accepted');
         if (acceptedRides.length > 0 && !currentRide) {
-          setCurrentRide(acceptedRides[0])
+          setCurrentRide(acceptedRides[0]);
         }
-      }, 1000)
-
-      return () => clearInterval(interval)
+      });
     }
-  }, [isAvailable, driver.id, currentRide])
+
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
+  }, [isAvailable, driver?.id, currentRide])
 
   const handlePriceChange = (requestId, price) => {
     setProposedPrices(prev => ({
@@ -53,7 +58,7 @@ export default function DriverDashboard({ driver, onLogout }) {
     }))
   }
 
-  const sendPriceProposal = (request) => {
+  const sendPriceProposal = async (request) => {
     const price = proposedPrices[request.id]
     
     if (!price || price <= 0) {
@@ -61,75 +66,73 @@ export default function DriverDashboard({ driver, onLogout }) {
       return
     }
 
-    // Atualizar a solicitação com a proposta de preço
-    const requests = JSON.parse(localStorage.getItem('rideRequests') || '[]')
-    const updatedRequests = requests.map(r => 
-      r.id === request.id 
-        ? { ...r, status: 'priceProposed', proposedPrice: parseFloat(price) }
-        : r
-    )
-    localStorage.setItem('rideRequests', JSON.stringify(updatedRequests))
-    
-    // Remover da lista local
-    setRideRequests(prev => prev.filter(r => r.id !== request.id))
-    
-    // Limpar o preço proposto
-    setProposedPrices(prev => {
-      const newPrices = { ...prev }
-      delete newPrices[request.id]
-      return newPrices
-    })
-    
-    alert(`Proposta de R$ ${price} enviada para ${request.userName}!`)
-  }
-
-  const rejectRide = (requestId) => {
-    // Atualizar status da solicitação
-    const requests = JSON.parse(localStorage.getItem('rideRequests') || '[]')
-    const updatedRequests = requests.map(r => 
-      r.id === requestId ? { ...r, status: 'rejected' } : r
-    )
-    localStorage.setItem('rideRequests', JSON.stringify(updatedRequests))
-    
-    // Remover da lista local
-    setRideRequests(prev => prev.filter(r => r.id !== requestId))
-  }
-
-  const startRide = () => {
-    if (currentRide) {
-      // Atualizar status da corrida
-      const requests = JSON.parse(localStorage.getItem('rideRequests') || '[]')
-      const updatedRequests = requests.map(r => 
-        r.id === currentRide.id ? { ...r, status: 'inProgress' } : r
-      )
-      localStorage.setItem('rideRequests', JSON.stringify(updatedRequests))
+    try {
+      // Atualizar a solicitação com a proposta de preço no Firestore
+      await rideRequestService.update(request.id, {
+        status: 'priceProposed',
+        proposedPrice: parseFloat(price)
+      });
       
-      setCurrentRide(prev => ({ ...prev, status: 'inProgress' }))
+      // Limpar o preço proposto
+      setProposedPrices(prev => {
+        const newPrices = { ...prev }
+        delete newPrices[request.id]
+        return newPrices
+      })
+      
+      alert(`Proposta de R$ ${price} enviada para ${request.userName}!`)
+    } catch (error) {
+      console.error('Erro ao enviar proposta:', error);
+      alert('Erro ao enviar proposta. Tente novamente.');
     }
   }
 
-  const completeRide = () => {
+  const rejectRide = async (requestId) => {
+    try {
+      // Atualizar status da solicitação no Firestore
+      await rideRequestService.update(requestId, {
+        status: 'rejected'
+      });
+    } catch (error) {
+      console.error('Erro ao rejeitar corrida:', error);
+      alert('Erro ao rejeitar corrida. Tente novamente.');
+    }
+  }
+
+  const startRide = async () => {
     if (currentRide) {
-      // Adicionar ganho da corrida
-      const rideEarning = currentRide.acceptedPrice || currentRide.proposedPrice || 0
-      setEarnings(prev => prev + rideEarning)
-      
-      // Atualizar estatísticas do motorista
-      const drivers = JSON.parse(localStorage.getItem('drivers') || '[]')
-      const updatedDrivers = drivers.map(d => 
-        d.id === driver.id ? { ...d, trips: (d.trips || 0) + 1 } : d
-      )
-      localStorage.setItem('drivers', JSON.stringify(updatedDrivers))
-      
-      // Marcar corrida como concluída
-      const requests = JSON.parse(localStorage.getItem('rideRequests') || '[]')
-      const updatedRequests = requests.map(r => 
-        r.id === currentRide.id ? { ...r, status: 'completed' } : r
-      )
-      localStorage.setItem('rideRequests', JSON.stringify(updatedRequests))
-      
-      setCurrentRide(null)
-      alert(`Corrida concluída! Você ganhou R$ ${rideEarning.toFixed(2)}`)
+      try {
+        // Atualizar status da corrida no Firestore
+        await rideRequestService.update(currentRide.id, {
+          status: 'inProgress'
+        });
+        
+        setCurrentRide(prev => ({ ...prev, status: 'inProgress' }))
+      } catch (error) {
+        console.error('Erro ao iniciar corrida:', error);
+        alert('Erro ao iniciar corrida. Tente novamente.');
+      }
+    }
+  }
+
+  const completeRide = async () => {
+    if (currentRide) {
+      try {
+        // Adicionar ganho da corrida
+        const rideEarning = currentRide.acceptedPrice || currentRide.proposedPrice || 0
+        setEarnings(prev => prev + rideEarning)
+        
+        // Atualizar status da corrida no Firestore
+        await rideRequestService.update(currentRide.id, {
+          status: 'completed'
+        });
+        
+        setCurrentRide(null)
+        alert(`Corrida finalizada! Você ganhou R$ ${rideEarning.toFixed(2)}`)
+      } catch (error) {
+        console.error('Erro ao finalizar corrida:', error);
+        alert('Erro ao finalizar corrida. Tente novamente.');
+      }
     }
   }
 

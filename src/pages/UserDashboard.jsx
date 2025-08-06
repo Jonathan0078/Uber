@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { LogOut, MapPin, Navigation, Clock, User, Star, Car, DollarSign, CheckCircle, XCircle } from 'lucide-react'
+import { rideRequestService, driverService } from '../services/firestoreService'
 
 export default function UserDashboard({ user, onLogout }) {
   const [currentLocation, setCurrentLocation] = useState(null)
@@ -60,21 +61,29 @@ export default function UserDashboard({ user, onLogout }) {
       })
     }
 
-    // Verificar se há propostas de preço dos motoristas
-    const interval = setInterval(() => {
-      const requests = JSON.parse(localStorage.getItem('rideRequests') || '[]')
-      const userRequests = requests.filter(r => r.userId === user.id && r.status === 'priceProposed')
-      
-      if (userRequests.length > 0 && rideStatus === 'waitingPrice') {
-        const request = userRequests[0]
-        setDriverPrice(request.proposedPrice)
-        setSelectedDriver(request.driver)
-        setRideStatus('priceReceived')
-      }
-    }, 1000)
+    // Escutar mudanças nas solicitações do usuário em tempo real
+    let unsubscribe = null;
+    
+    if (user?.id) {
+      unsubscribe = rideRequestService.onUserRequestsChange(user.id, (requests) => {
+        setRideRequests(requests);
+        
+        // Verificar se há propostas de preço
+        const priceProposedRequest = requests.find(r => r.status === 'priceProposed');
+        if (priceProposedRequest && rideStatus === 'waitingPrice') {
+          setDriverPrice(priceProposedRequest.proposedPrice);
+          setSelectedDriver(priceProposedRequest.driver);
+          setRideStatus('priceReceived');
+        }
+      });
+    }
 
-    return () => clearInterval(interval)
-  }, [user.id, rideStatus])
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
+  }, [user?.id, rideStatus])
 
   const requestRide = async () => {
     if (!originStreet.trim() || !destination.trim()) {
@@ -90,133 +99,143 @@ export default function UserDashboard({ user, onLogout }) {
     setLoading(true)
     setRideStatus('requesting')
 
-    // Simular busca por motoristas
-    setTimeout(() => {
-      // Buscar motoristas cadastrados
-      const drivers = JSON.parse(localStorage.getItem('drivers') || '[]')
-      const availableDriversList = drivers.filter(d => d.available !== false).map(driver => ({
-        ...driver,
-        distance: `${(Math.random() * 5 + 0.5).toFixed(1)} km`,
-        eta: `${Math.floor(Math.random() * 10 + 2)} min`,
-        rating: (Math.random() * 1 + 4).toFixed(1)
-      }))
-
-      if (availableDriversList.length > 0) {
-        setAvailableDrivers(availableDriversList)
-      } else {
+    try {
+      // Buscar motoristas disponíveis no Firestore
+      const availableDriversList = await driverService.getAvailable();
+      
+      if (availableDriversList.length === 0) {
         // Motoristas simulados caso não haja cadastrados
         const mockDrivers = [
           {
-            id: 1,
+            id: 'mock_1',
             name: 'Carlos Silva',
             vehicle: 'Honda Civic Branco',
             plate: 'ABC-1234',
             pixKey: 'carlos.silva@email.com',
             distance: '2.1 km',
             eta: '5 min',
-            rating: '4.8'
+            rating: '4.8',
+            available: true
           },
           {
-            id: 2,
+            id: 'mock_2',
             name: 'Maria Santos',
             vehicle: 'Toyota Corolla Prata',
             plate: 'DEF-5678',
             pixKey: '(51) 99999-9999',
             distance: '1.5 km',
             eta: '3 min',
-            rating: '4.9'
+            rating: '4.9',
+            available: true
           },
           {
-            id: 3,
+            id: 'mock_3',
             name: 'João Oliveira',
             vehicle: 'Chevrolet Onix Azul',
             plate: 'GHI-9012',
             pixKey: 'joao.oliveira@pix.com',
             distance: '3.2 km',
             eta: '7 min',
-            rating: '4.7'
+            rating: '4.7',
+            available: true
           }
-        ]
-        setAvailableDrivers(mockDrivers)
+        ];
+        setAvailableDrivers(mockDrivers);
+      } else {
+        // Adicionar dados simulados de distância e tempo
+        const driversWithDistance = availableDriversList.map(driver => ({
+          ...driver,
+          distance: `${(Math.random() * 5 + 0.5).toFixed(1)} km`,
+          eta: `${Math.floor(Math.random() * 10 + 2)} min`,
+          rating: driver.rating || (Math.random() * 1 + 4).toFixed(1)
+        }));
+        setAvailableDrivers(driversWithDistance);
       }
+      
       setLoading(false)
-    }, 2000)
+    } catch (error) {
+      console.error('Erro ao buscar motoristas:', error);
+      alert('Erro ao buscar motoristas. Tente novamente.');
+      setLoading(false);
+      setRideStatus('idle');
+    }
   }
 
-  const selectDriver = (driver) => {
+  const selectDriver = async (driver) => {
     setSelectedDriver(driver)
     setRideStatus('waitingPrice')
     
-    // Criar solicitação de corrida para o motorista
-    const rideRequest = {
-      id: Date.now(),
-      userId: user.id,
-      userName: user.name,
-      userPhone: user.phone,
-      driverId: driver.id,
-      driver: driver,
-      origin: originStreet,
-      destination: destination,
-      status: 'waitingPrice',
-      createdAt: new Date().toISOString()
+    try {
+      // Criar solicitação de corrida no Firestore
+      const rideRequest = {
+        userId: user.id,
+        userName: user.name,
+        userPhone: user.phone,
+        driverId: driver.id,
+        driver: driver,
+        origin: originStreet,
+        destination: destination,
+        status: 'waitingPrice'
+      }
+      
+      await rideRequestService.create(rideRequest);
+    } catch (error) {
+      console.error('Erro ao criar solicitação:', error);
+      alert('Erro ao enviar solicitação. Tente novamente.');
+      setRideStatus('requesting');
     }
-    
-    const requests = JSON.parse(localStorage.getItem('rideRequests') || '[]')
-    requests.push(rideRequest)
-    localStorage.setItem('rideRequests', JSON.stringify(requests))
   }
 
-  const acceptPrice = () => {
+  const acceptPrice = async () => {
     if (!paymentMethod) {
       alert('Por favor, selecione uma forma de pagamento!')
       return
     }
 
-    setRideStatus('matched')
-    
-    // Atualizar status da solicitação
-    const requests = JSON.parse(localStorage.getItem('rideRequests') || '[]')
-    const updatedRequests = requests.map(r => 
-      r.userId === user.id && r.status === 'priceProposed' 
-        ? { ...r, status: 'accepted', paymentMethod: paymentMethod, acceptedPrice: driverPrice }
-        : r
-    )
-    localStorage.setItem('rideRequests', JSON.stringify(updatedRequests))
-    
-    // Criar registro da corrida
-    const ride = {
-      id: Date.now(),
-      userId: user.id,
-      driverId: selectedDriver.id,
-      origin: originStreet,
-      destination: destination,
-      price: driverPrice,
-      paymentMethod: paymentMethod,
-      pixKey: paymentMethod === 'pix' ? selectedDriver.pixKey : null,
-      status: 'accepted',
-      createdAt: new Date().toISOString()
+    try {
+      setRideStatus('matched')
+      
+      // Buscar a solicitação atual do usuário
+      const userRequests = await rideRequestService.getByUser(user.id);
+      const currentRequest = userRequests.find(r => r.status === 'priceProposed');
+      
+      if (currentRequest) {
+        // Atualizar status da solicitação no Firestore
+        await rideRequestService.update(currentRequest.id, {
+          status: 'accepted',
+          paymentMethod: paymentMethod,
+          acceptedPrice: driverPrice
+        });
+      }
+    } catch (error) {
+      console.error('Erro ao aceitar preço:', error);
+      alert('Erro ao aceitar preço. Tente novamente.');
+      setRideStatus('priceReceived');
     }
-    
-    const rides = JSON.parse(localStorage.getItem('rides') || '[]')
-    rides.push(ride)
-    localStorage.setItem('rides', JSON.stringify(rides))
   }
 
-  const rejectPrice = () => {
-    // Atualizar status da solicitação
-    const requests = JSON.parse(localStorage.getItem('rideRequests') || '[]')
-    const updatedRequests = requests.map(r => 
-      r.userId === user.id && r.status === 'priceProposed' 
-        ? { ...r, status: 'rejected' }
-        : r
-    )
-    localStorage.setItem('rideRequests', JSON.stringify(updatedRequests))
-    
-    // Voltar para seleção de motoristas
-    setRideStatus('requesting')
-    setSelectedDriver(null)
-    setDriverPrice(null)
-    setPaymentMethod('')
+  const rejectPrice = async () => {
+    try {
+      // Buscar a solicitação atual do usuário
+      const userRequests = await rideRequestService.getByUser(user.id);
+      const currentRequest = userRequests.find(r => r.status === 'priceProposed');
+      
+      if (currentRequest) {
+        // Atualizar status da solicitação no Firestore
+        await rideRequestService.update(currentRequest.id, {
+          status: 'rejected'
+        });
+      }
+      
+      // Voltar para seleção de motoristas
+      setRideStatus('requesting')
+      setSelectedDriver(null)
+      setDriverPrice(null)
+      setPaymentMethod('')
+    } catch (error) {
+      console.error('Erro ao rejeitar preço:', error);
+      alert('Erro ao rejeitar preço. Tente novamente.');
+    }
   }
 
   const startRide = () => {
