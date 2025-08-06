@@ -30,16 +30,13 @@ export default function UserLogin({ onBack, onLogin, onRegister }) {
         createdAt: new Date().toISOString()
       }
       
-      // Salvar no Firestore
-      await userService.create(userData);
-      
       // Buscar no Firestore se o usuário já existe
       const existingUser = await userService.getById(user.uid);
       if (existingUser) {
-        // Atualizar dados do usuário no Firestore
+        // Se o usuário já existe, apenas atualiza (se necessário) e faz login
         await userService.update(user.uid, userData);
       } else {
-        // Criar novo usuário no Firestore
+        // Se não existe, cria um novo registro no Firestore
         await userService.create(userData);
       }
 

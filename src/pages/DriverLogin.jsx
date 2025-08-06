@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label'
 import { ArrowLeft, Car } from 'lucide-react'
 import { signInWithEmailAndPassword } from 'firebase/auth'
 import { auth } from '../firebase'
+import { driverService } from '../services/firestoreService'
 
 export default function DriverLogin({ onBack, onLogin, onRegister }) {
   const [email, setEmail] = useState('')
