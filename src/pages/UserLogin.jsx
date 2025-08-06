@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { ArrowLeft, User } from 'lucide-react'
 import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth'
 import { auth } from '../firebase'
+import { userService } from '../services/firestoreService'
 
 export default function UserLogin({ onBack, onLogin, onRegister }) {
   const [loading, setLoading] = useState(false)
