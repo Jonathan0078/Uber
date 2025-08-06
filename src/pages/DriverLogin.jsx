@@ -25,35 +25,35 @@ export default function DriverLogin({ onBack, onLogin, onRegister }) {
       const user = userCredential.user;
       console.log("User logged in successfully:", user.uid);
       
-      // Criar objeto do motorista com dados do Firebase
-      const driverData = {
-        id: user.uid,
-        name: user.displayName || 'Motorista',
-        email: user.email,
-        phone: '',
-        vehicle: '',
-        plate: '',
-        cnh: '',
-        year: '',
-        pixKey: '',
-        provider: 'firebase',
-        type: 'driver',
-        available: false,
-        trips: 0,
-        rating: '5.0',
-        createdAt: new Date().toISOString()
-      };
-
       console.log("Checking for existing driver in Firestore...");
       // Buscar no Firestore se o motorista já existe
       const existingDriver = await driverService.getById(user.uid);
+      
+      let driverData;
       if (existingDriver) {
-        console.log("Driver found in Firestore, updating data.");
-        // Atualizar dados do motorista no Firestore
-        await driverService.update(user.uid, driverData);
-        Object.assign(driverData, existingDriver); // Merge existing data
+        console.log("Driver found in Firestore.");
+        driverData = existingDriver;
       } else {
         console.log("Driver not found in Firestore, creating new entry.");
+        // Criar objeto do motorista com dados básicos
+        driverData = {
+          id: user.uid,
+          name: user.displayName || 'Motorista',
+          email: user.email,
+          phone: '',
+          vehicle: '',
+          plate: '',
+          cnh: '',
+          year: '',
+          pixKey: '',
+          provider: 'firebase',
+          type: 'driver',
+          available: false,
+          trips: 0,
+          rating: '5.0',
+          createdAt: new Date().toISOString()
+        };
+        
         // Criar novo motorista no Firestore
         await driverService.create(driverData);
       }
@@ -61,7 +61,8 @@ export default function DriverLogin({ onBack, onLogin, onRegister }) {
       // Salvar o ID do motorista logado no localStorage
       localStorage.setItem("currentDriverId", user.uid);
       onLogin(driverData);
-      console.log("Login process completed.");    } catch (error) {
+      console.log("Login process completed.");
+    } catch (error) {
       console.error("Erro no login:", error);
       let errorMessage = "Erro ao fazer login. Tente novamente.";
 
