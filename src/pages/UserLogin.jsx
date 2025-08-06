@@ -46,10 +46,28 @@ export default function UserLogin({ onBack, onLogin, onRegister }) {
       
       onLogin(userData)
     } catch (error) {
-      console.error('Erro no login do Google:', error);
-      setError('Erro ao fazer login com Google. Tente novamente.');
+      console.error("Erro no login do Google:", error);
+      let errorMessage = "Erro ao fazer login com Google. Tente novamente.";
+
+      switch (error.code) {
+        case "auth/popup-closed-by-user":
+          errorMessage = "Login cancelado. Por favor, tente novamente.";
+          break;
+        case "auth/cancelled-popup-request":
+          errorMessage = "Login cancelado. Por favor, tente novamente.";
+          break;
+        case "auth/operation-not-allowed":
+          errorMessage = "O método de login não está ativado no Firebase.";
+          break;
+        case "auth/network-request-failed":
+          errorMessage = "Erro de conexão. Verifique sua internet e tente novamente.";
+          break;
+        default:
+          errorMessage = error.message; // Exibe a mensagem de erro do Firebase por padrão
+      }
+      setError(errorMessage);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 

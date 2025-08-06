@@ -56,27 +56,29 @@ export default function DriverLogin({ onBack, onLogin, onRegister }) {
       // Salvar o ID do motorista logado no localStorage
       localStorage.setItem("currentDriverId", user.uid);
       onLogin(driverData)
-      console.error('Erro no login:', error)
-      let errorMessage = 'Erro ao fazer login. Tente novamente.'
-      
+    } catch (error) {
+      console.error("Erro no login:", error);
+      let errorMessage = "Erro ao fazer login. Tente novamente.";
+
       switch (error.code) {
-        case 'auth/user-not-found':
-          errorMessage = 'Usuário não encontrado. Verifique o e-mail.'
-          break
-        case 'auth/wrong-password':
-          errorMessage = 'Senha incorreta.'
-          break
-        case 'auth/invalid-email':
-          errorMessage = 'E-mail inválido.'
-          break
-        case 'auth/too-many-requests':
-          errorMessage = 'Muitas tentativas. Tente novamente mais tarde.'
-          break
+        case "auth/user-not-found":
+          errorMessage = "Usuário não encontrado. Verifique o e-mail.";
+          break;
+        case "auth/wrong-password":
+          errorMessage = "Senha incorreta.";
+          break;
+        case "auth/invalid-email":
+          errorMessage = "E-mail inválido.";
+          break;
+        case "auth/too-many-requests":
+          errorMessage = "Muitas tentativas. Tente novamente mais tarde.";
+          break;
+        default:
+          errorMessage = error.message; // Exibe a mensagem de erro do Firebase por padrão
       }
-      
-      setError(errorMessage)
+      setError(errorMessage);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
