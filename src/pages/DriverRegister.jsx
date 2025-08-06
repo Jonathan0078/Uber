@@ -4,6 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ArrowLeft, Car } from 'lucide-react'
+import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth'
+import { auth } from '../firebase'
 
 export default function DriverRegister({ onBack, onRegister }) {
   const [formData, setFormData] = useState({
@@ -19,6 +21,7 @@ export default function DriverRegister({ onBack, onRegister }) {
     pixKey: ''
   })
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
   const handleChange = (e) => {
     setFormData({
@@ -30,46 +33,76 @@ export default function DriverRegister({ onBack, onRegister }) {
   const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
+    setError('')
 
     if (formData.password !== formData.confirmPassword) {
-      alert('As senhas não coincidem!')
+      setError('As senhas não coincidem!')
       setLoading(false)
       return
     }
 
-    // Verificar se o email já existe
-    const drivers = JSON.parse(localStorage.getItem('drivers') || '[]')
-    if (drivers.find(d => d.email === formData.email)) {
-      alert('Este email já está cadastrado!')
+    if (formData.password.length < 6) {
+      setError('A senha deve ter pelo menos 6 caracteres!')
       setLoading(false)
       return
     }
 
-    // Criar novo motorista
-    const newDriver = {
-      id: Date.now(),
-      name: formData.name,
-      email: formData.email,
-      phone: formData.phone,
-      password: formData.password,
-      cnh: formData.cnh,
-      vehicle: formData.vehicle,
-      plate: formData.plate,
-      year: formData.year,
-      pixKey: formData.pixKey,
-      available: true,
-      rating: 5.0,
-      trips: 0,
-      createdAt: new Date().toISOString()
-    }
+    try {
+      // Criar usuário no Firebase
+      const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password)
+      const user = userCredential.user
+      
+      // Atualizar perfil do usuário
+      await updateProfile(user, {
+        displayName: formData.name
+      })
 
-    drivers.push(newDriver)
-    localStorage.setItem('drivers', JSON.stringify(drivers))
-    localStorage.setItem('currentDriver', JSON.stringify(newDriver))
-    
-    alert('Cadastro realizado com sucesso!')
-    onRegister(newDriver)
-    setLoading(false)
+      // Criar objeto do motorista
+      const newDriver = {
+        id: user.uid,
+        name: formData.name,
+        email: formData.email,
+        phone: formData.phone,
+        cnh: formData.cnh,
+        vehicle: formData.vehicle,
+        plate: formData.plate,
+        year: formData.year,
+        pixKey: formData.pixKey,
+        provider: 'firebase',
+        type: 'driver',
+        available: false,
+        trips: 0,
+        rating: '5.0',
+        createdAt: new Date().toISOString()
+      }
+
+      // Salvar no localStorage
+      const drivers = JSON.parse(localStorage.getItem('drivers') || '[]')
+      drivers.push(newDriver)
+      localStorage.setItem('drivers', JSON.stringify(drivers))
+      localStorage.setItem('currentDriver', JSON.stringify(newDriver))
+
+      onRegister(newDriver)
+    } catch (error) {
+      console.error('Erro no cadastro:', error)
+      let errorMessage = 'Erro ao criar conta. Tente novamente.'
+      
+      switch (error.code) {
+        case 'auth/email-already-in-use':
+          errorMessage = 'Este e-mail já está em uso.'
+          break
+        case 'auth/invalid-email':
+          errorMessage = 'E-mail inválido.'
+          break
+        case 'auth/weak-password':
+          errorMessage = 'A senha é muito fraca.'
+          break
+      }
+      
+      setError(errorMessage)
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -95,6 +128,12 @@ export default function DriverRegister({ onBack, onRegister }) {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {error && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-sm text-red-700">{error}</p>
+              </div>
+            )}
+            
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="name">Nome completo</Label>

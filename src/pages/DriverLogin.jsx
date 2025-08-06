@@ -4,28 +4,88 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ArrowLeft, Car } from 'lucide-react'
+import { signInWithEmailAndPassword } from 'firebase/auth'
+import { auth } from '../firebase'
 
 export default function DriverLogin({ onBack, onLogin, onRegister }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
   const handleLogin = async (e) => {
     e.preventDefault()
     setLoading(true)
+    setError('')
     
-    // Simular verificação de login
-    const drivers = JSON.parse(localStorage.getItem('drivers') || '[]')
-    const driver = drivers.find(d => d.email === email && d.password === password)
-    
-    if (driver) {
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, email, password)
+      const user = userCredential.user
+      
+      // Verificar se é um motorista no localStorage
+      const drivers = JSON.parse(localStorage.getItem('drivers') || '[]')
+      let driver = drivers.find(d => d.email === email)
+      
+      if (!driver) {
+        // Se não encontrou o motorista, criar um novo registro
+        driver = {
+          id: user.uid,
+          name: user.displayName || 'Motorista',
+          email: user.email,
+          phone: '',
+          vehicle: '',
+          plate: '',
+          cnh: '',
+          year: '',
+          pixKey: '',
+          provider: 'firebase',
+          type: 'driver',
+          available: false,
+          trips: 0,
+          rating: '5.0',
+          createdAt: new Date().toISOString()
+        }
+        
+        drivers.push(driver)
+        localStorage.setItem('drivers', JSON.stringify(drivers))
+      } else {
+        // Atualizar dados do Firebase
+        driver = {
+          ...driver,
+          id: user.uid,
+          email: user.email,
+          provider: 'firebase'
+        }
+        
+        const updatedDrivers = drivers.map(d => d.email === email ? driver : d)
+        localStorage.setItem('drivers', JSON.stringify(updatedDrivers))
+      }
+      
       localStorage.setItem('currentDriver', JSON.stringify(driver))
       onLogin(driver)
-    } else {
-      alert('Email ou senha incorretos!')
+    } catch (error) {
+      console.error('Erro no login:', error)
+      let errorMessage = 'Erro ao fazer login. Tente novamente.'
+      
+      switch (error.code) {
+        case 'auth/user-not-found':
+          errorMessage = 'Usuário não encontrado. Verifique o e-mail.'
+          break
+        case 'auth/wrong-password':
+          errorMessage = 'Senha incorreta.'
+          break
+        case 'auth/invalid-email':
+          errorMessage = 'E-mail inválido.'
+          break
+        case 'auth/too-many-requests':
+          errorMessage = 'Muitas tentativas. Tente novamente mais tarde.'
+          break
+      }
+      
+      setError(errorMessage)
+    } finally {
+      setLoading(false)
     }
-    
-    setLoading(false)
   }
 
   return (
@@ -51,6 +111,12 @@ export default function DriverLogin({ onBack, onLogin, onRegister }) {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {error && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-sm text-red-700">{error}</p>
+              </div>
+            )}
+            
             <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>

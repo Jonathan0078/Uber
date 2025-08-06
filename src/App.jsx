@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import ProfileSelection from './pages/ProfileSelection'
 import UserLogin from './pages/UserLogin'
 import UserRegister from './pages/UserRegister'
+import UserProfile from './pages/UserProfile'
 import UserDashboard from './pages/UserDashboard'
 import DriverLogin from './pages/DriverLogin'
 import DriverRegister from './pages/DriverRegister'
@@ -39,7 +40,12 @@ function App() {
 
   const handleUserLogin = (user) => {
     setCurrentUser(user)
-    setCurrentView('user-dashboard')
+    // Se o usuário logou com Google e não tem telefone, vai para o perfil
+    if (user.provider === 'google' && !user.phone) {
+      setCurrentView('user-profile')
+    } else {
+      setCurrentView('user-dashboard')
+    }
   }
 
   const handleDriverLogin = (driver) => {
@@ -55,6 +61,11 @@ function App() {
   const handleDriverRegister = (driver) => {
     setCurrentDriver(driver)
     setCurrentView('driver-dashboard')
+  }
+
+  const handleProfileComplete = (user) => {
+    setCurrentUser(user)
+    setCurrentView('user-dashboard')
   }
 
   const handleUserLogout = () => {
@@ -91,6 +102,14 @@ function App() {
         <UserRegister 
           onBack={() => setCurrentView('user-login')}
           onRegister={handleUserRegister}
+        />
+      )
+    
+    case 'user-profile':
+      return (
+        <UserProfile 
+          user={currentUser}
+          onProfileComplete={handleProfileComplete}
         />
       )
     
