@@ -128,14 +128,7 @@ export default function UserDashboard({ user, onLogout }) {
         return;
       }
       
-      const driversWithDisplayData = availableDriversList.map(driver => ({
-        ...driver,
-        distance: driver.distance || `${(Math.random() * 5 + 0.5).toFixed(1)} km`,
-        eta: driver.eta || `${Math.floor(Math.random() * 10 + 2)} min`,
-        rating: driver.rating || '4.8'
-      }));
-      
-      setAvailableDrivers(driversWithDisplayData);
+      setAvailableDrivers(availableDriversList);
       setLoading(false)
     } catch (error) {
       console.error('Erro ao buscar motoristas:', error);
