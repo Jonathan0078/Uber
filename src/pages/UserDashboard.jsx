@@ -90,10 +90,17 @@ export default function UserDashboard({ user, onLogout }) {
       unsubscribe = rideRequestService.onUserRequestsChange(user.id, (requests) => {
         setRideRequests(requests);
         const priceProposedRequest = requests.find(r => r.status === "priceProposed");
+        const acceptedRequest = requests.find(r => r.status === "accepted");
+        const inProgressRequest = requests.find(r => r.status === "inProgress");
+
         if (priceProposedRequest && rideStatus === "waitingPrice") {
           setDriverPrice(priceProposedRequest.proposedPrice);
           setSelectedDriver(priceProposedRequest.driver);
           setRideStatus("priceReceived");
+        } else if (acceptedRequest && (rideStatus === "priceReceived" || rideStatus === "waitingPrice")) {
+          setRideStatus("matched");
+        } else if (inProgressRequest && (rideStatus === "matched" || rideStatus === "priceReceived")) {
+          setRideStatus("inProgress");
         }
       });
     }

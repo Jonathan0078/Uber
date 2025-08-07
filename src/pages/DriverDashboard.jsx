@@ -80,7 +80,6 @@ export default function DriverDashboard({ onLogout }) {
       console.log('Escutando solicitações para motorista:', driver.id);
       unsubscribe = rideRequestService.onPendingRequestsChange((requests) => {
         console.log('Solicitações recebidas:', requests.length);
-        
         const waitingRequests = requests.filter(r => r.status === "waitingPrice" && r.driverId === driver.id);
         console.log('Solicitações aguardando preço:', waitingRequests.length);
         setRideRequests(waitingRequests);
