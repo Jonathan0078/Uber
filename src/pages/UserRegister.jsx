@@ -16,6 +16,23 @@ export default function UserRegister({ onBack, onRegister }) {
     password: '',
     confirmPassword: ''
   })
+  // Se vier dados do login, já preenche o formulário
+  React.useEffect(() => {
+    if (typeof onRegister === 'object' && onRegister && onRegister.id) {
+      setFormData({
+        name: onRegister.name || '',
+        email: onRegister.email || '',
+        phone: onRegister.phone || '',
+        password: '',
+        confirmPassword: ''
+      })
+      setStep(2)
+      setGoogleUser({
+        uid: onRegister.id,
+        photoURL: onRegister.photoURL
+      })
+    }
+  }, [onRegister])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [step, setStep] = useState(1) // 1: escolha, 2: formulário Google, 3: formulário email

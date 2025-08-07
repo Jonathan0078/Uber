@@ -33,18 +33,23 @@ export default function UserLogin({ onBack, onLogin, onRegister }) {
       
       // Buscar no Firestore se o usuário já existe
       const existingUser = await userService.getById(user.uid);
-      if (existingUser) {
-        // Se o usuário já existe, apenas atualiza (se necessário) e faz login
-        await userService.update(user.uid, userData);
+      if (existingUser && existingUser.phone) {
+        // Usuário já cadastrado e com telefone, login direto
+        localStorage.setItem("currentUserId", user.uid);
+        onLogin(existingUser)
       } else {
-        // Se não existe, cria um novo registro no Firestore
-        await userService.create(userData);
+        // Usuário novo ou sem telefone, abrir cadastro
+        onRegister({
+          id: user.uid,
+          name: user.displayName,
+          email: user.email,
+          phone: '',
+          photoURL: user.photoURL,
+          provider: 'google',
+          type: 'user',
+          createdAt: new Date().toISOString()
+        })
       }
-
-      // Salvar o ID do usuário logado no localStorage
-      localStorage.setItem("currentUserId", user.uid);
-      
-      onLogin(userData)
     } catch (error) {
       console.error("Erro no login do Google:", error);
       let errorMessage = "Erro ao fazer login com Google. Tente novamente.";

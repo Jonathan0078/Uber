@@ -40,12 +40,7 @@ function App() {
 
   const handleUserLogin = (user) => {
     setCurrentUser(user)
-    // Se o usuário logou com Google e não tem telefone, vai para o perfil
-    if (user.provider === 'google' && !user.phone) {
-      setCurrentView('user-profile')
-    } else {
-      setCurrentView('user-dashboard')
-    }
+    setCurrentView('user-dashboard')
   }
 
   const handleDriverLogin = (driver) => {

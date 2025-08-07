@@ -19,7 +19,30 @@ import { db } from '../firebase';
 const COLLECTIONS = {
   RIDE_REQUESTS: 'rideRequests',
   USERS: 'users',
-  DRIVERS: 'drivers'
+  DRIVERS: 'drivers',
+  CHATS: 'chats'
+};
+// Serviço de Chat Passageiro/Motorista
+export const chatService = {
+  // Escuta mensagens em tempo real de um chat
+  onMessages(chatId, callback) {
+    const q = query(
+      collection(db, COLLECTIONS.CHATS, chatId, 'messages'),
+      orderBy('timestamp', 'asc')
+    );
+    return onSnapshot(q, (querySnapshot) => {
+      const msgs = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      callback(msgs);
+    });
+  },
+
+  // Envia uma mensagem para o chat
+  async sendMessage(chatId, message) {
+    await addDoc(collection(db, COLLECTIONS.CHATS, chatId, 'messages'), {
+      ...message,
+      timestamp: new Date().toISOString()
+    });
+  }
 };
 
 // Serviço para Solicitações de Corrida
@@ -254,6 +277,20 @@ export const driverService = {
     }
   },
 
+  // Buscar todos os motoristas cadastrados
+  async getAll() {
+    try {
+      const q = query(collection(db, COLLECTIONS.DRIVERS));
+      const querySnapshot = await getDocs(q);
+      return querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+    } catch (error) {
+      console.error('Erro ao buscar motoristas:', error);
+      throw error;
+    }
+  },
   // Buscar motoristas disponíveis
   async getAvailable() {
     try {

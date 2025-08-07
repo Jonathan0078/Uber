@@ -6,6 +6,7 @@ import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth'
 import { auth } from '../firebase'
 import { driverService } from '../services/firestoreService'
 
+import React from 'react'
 export default function DriverRegister({ onBack, onRegister }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -28,6 +29,30 @@ export default function DriverRegister({ onBack, onRegister }) {
     createdAt: '',
     photoURL: null
   })
+  // Se vier dados do login, já preenche o formulário
+  React.useEffect(() => {
+    if (typeof onRegister === 'object' && onRegister && onRegister.id) {
+      setDriverData({
+        id: onRegister.id,
+        name: onRegister.name || '',
+        email: onRegister.email || '',
+        phone: onRegister.phone || '',
+        vehicle: onRegister.vehicle || '',
+        plate: onRegister.plate || '',
+        cnh: onRegister.cnh || '',
+        year: onRegister.year || '',
+        pixKey: onRegister.pixKey || '',
+        provider: onRegister.provider || 'google',
+        type: 'driver',
+        available: false,
+        trips: 0,
+        rating: '5.0',
+        createdAt: onRegister.createdAt || '',
+        photoURL: onRegister.photoURL || null
+      })
+      setStep(2)
+    }
+  }, [onRegister])
 
 
   const handleGoogleRegister = async () => {

@@ -20,6 +20,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { LogOut, Car, MapPin, Clock, Star, DollarSign, Send, CheckCircle } from 'lucide-react'
 import { rideRequestService, driverService } from '../services/firestoreService'
+import LiveMap from '../components/LiveMap'
 
 export default function DriverDashboard({ onLogout }) {
   const [isAvailable, setIsAvailable] = useState(false);
@@ -198,6 +199,21 @@ export default function DriverDashboard({ onLogout }) {
       </div>
 
       <div className="max-w-md mx-auto p-4 space-y-4">
+        {/* Mapa ao vivo com localização do motorista */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <MapPin className="w-5 h-5" />
+              <span>Mapa ao Vivo</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <LiveMap
+              center={driver?.location ? [driver.location.lat, driver.location.lng] : undefined}
+              markers={driver?.location ? [{ lat: driver.location.lat, lng: driver.location.lng, label: 'Você (Motorista)' }] : []}
+            />
+          </CardContent>
+        </Card>
         {/* Status de Disponibilidade */}
         <Card>
           <CardHeader>

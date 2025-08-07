@@ -40,18 +40,32 @@ export default function DriverLogin({ onBack, onLogin, onRegister }) {
 
       console.log("Checking for existing driver in Firestore...");
       const existingDriver = await driverService.getById(user.uid);
-      if (existingDriver) {
-        console.log("Driver found in Firestore, updating data.");
-        await driverService.update(user.uid, driverData);
-        Object.assign(driverData, existingDriver); // Merge existing data
+      // Checa se já tem todos os dados obrigatórios
+      const hasAllData = existingDriver && existingDriver.plate && existingDriver.cnh && existingDriver.vehicle && existingDriver.year;
+      if (hasAllData) {
+        localStorage.setItem("currentDriverId", user.uid);
+        onLogin(existingDriver);
       } else {
-        console.log("Driver not found in Firestore, creating new entry.");
-        await driverService.create(driverData);
+        // Se não tem cadastro completo, abrir tela de cadastro
+        onRegister({
+          id: user.uid,
+          name: user.displayName,
+          email: user.email,
+          phone: '',
+          vehicle: '',
+          plate: '',
+          cnh: '',
+          year: '',
+          pixKey: '',
+          provider: 'google',
+          type: 'driver',
+          available: false,
+          trips: 0,
+          rating: '5.0',
+          createdAt: new Date().toISOString(),
+          photoURL: user.photoURL || null
+        });
       }
-
-      localStorage.setItem("currentDriverId", user.uid);
-      onLogin(driverData);
-      console.log("Google login process completed.");
 
     } catch (error) {
       console.error("Erro no login com Google:", error);

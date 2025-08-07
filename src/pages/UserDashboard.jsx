@@ -6,7 +6,35 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { LogOut, MapPin, Navigation, Clock, User, Star, Car, DollarSign, CheckCircle, XCircle } from 'lucide-react'
-import { rideRequestService, driverService } from '../services/firestoreService'
+import { rideRequestService, driverService, chatService } from '../services/firestoreService'
+  const [chatMessages, setChatMessages] = useState([])
+  const [chatInput, setChatInput] = useState("")
+  // Carregar mensagens do chat quando corrida for matched ou inProgress
+  useEffect(() => {
+    let unsubscribe = null;
+    if ((rideStatus === 'matched' || rideStatus === 'inProgress') && selectedDriver) {
+      // O ID do chat pode ser userId + driverId (ou ID da corrida, se existir)
+      const chatId = [user.id, selectedDriver.id].sort().join('_');
+      unsubscribe = chatService.onMessages(chatId, (msgs) => setChatMessages(msgs));
+    } else {
+      setChatMessages([])
+    }
+    return () => { if (unsubscribe) unsubscribe(); };
+  }, [rideStatus, selectedDriver, user.id]);
+
+  const handleSendMessage = async () => {
+    if (!chatInput.trim() || !selectedDriver) return;
+    const chatId = [user.id, selectedDriver.id].sort().join('_');
+    await chatService.sendMessage(chatId, {
+      senderId: user.id,
+      senderName: user.name,
+      text: chatInput,
+      timestamp: new Date().toISOString(),
+      type: 'user'
+    });
+    setChatInput("");
+  }
+import LiveMap from '../components/LiveMap'
 import { getDistanceKm } from '../lib/utils'
 
 export default function UserDashboard({ user, onLogout }) {
@@ -22,19 +50,7 @@ export default function UserDashboard({ user, onLogout }) {
   const [loading, setLoading] = useState(false)
   const [rideRequests, setRideRequests] = useState([])
 
-  // Ruas de Rio Pardo para seleção
-  const rioPardoStreets = [
-    'Rua Júlio de Castilhos (Rua da Ladeira)',
-    'Rua Andrade Neves',
-    'Rua General Osório',
-    'Rua Barão do Rio Branco',
-    'Rua Marechal Deodoro',
-    'Rua Coronel Vicente',
-    'Rua Voluntários da Pátria',
-    'Rua Tiradentes',
-    'Rua Benjamin Constant',
-    'Avenida Independência'
-  ]
+
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -252,98 +268,88 @@ export default function UserDashboard({ user, onLogout }) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50">
       {/* Header */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="max-w-md mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-              <User className="w-5 h-5 text-blue-600" />
+      <header className="sticky top-0 z-10 bg-white/80 backdrop-blur shadow-md border-b rounded-b-2xl">
+        <div className="max-w-md mx-auto px-4 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 bg-gradient-to-br from-blue-200 to-blue-400 rounded-full flex items-center justify-center shadow">
+              <User className="w-6 h-6 text-blue-700" />
             </div>
             <div>
-              <h1 className="font-semibold text-gray-900">Olá, {user.name}</h1>
-              <p className="text-sm text-gray-500">Rio Pardo-RS</p>
+              <h1 className="font-bold text-lg text-gray-900">Olá, {user.name}</h1>
+              <p className="text-xs text-gray-500">Bem-vindo ao Uber Rio Pardo</p>
             </div>
           </div>
-          <Button variant="ghost" size="sm" onClick={onLogout}>
-            <LogOut className="w-4 h-4" />
+          <Button variant="ghost" size="icon" onClick={onLogout} className="hover:bg-red-50">
+            <LogOut className="w-5 h-5 text-red-500" />
           </Button>
         </div>
-      </div>
+      </header>
 
-      <div className="max-w-md mx-auto p-4 space-y-4">
-        {/* Mapa com GPS */}
-        <Card>
+      <main className="max-w-md mx-auto p-4 space-y-6">
+        {/* Mapa ao vivo com localização do usuário e motoristas */}
+        <Card className="shadow-lg border-0 bg-white/90 rounded-2xl">
           <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
+            <CardTitle className="flex items-center gap-2 text-blue-700">
               <MapPin className="w-5 h-5" />
-              <span>Sua localização</span>
+              <span className="font-semibold">Mapa ao Vivo</span>
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="bg-gradient-to-br from-blue-100 to-green-100 rounded-lg h-48 flex items-center justify-center relative">
-              <div className="text-center">
-                <div className="text-4xl mb-2">🗺️</div>
-                <p className="text-sm font-medium text-gray-700">Rio Pardo - RS</p>
-                {currentLocation && (
-                  <div className="mt-2">
-                    <p className="text-xs text-green-600">📍 GPS Ativo</p>
-                    <p className="text-xs text-gray-500">
-                      {currentLocation.lat.toFixed(4)}, {currentLocation.lng.toFixed(4)}
-                    </p>
-                  </div>
-                )}
-              </div>
-              {currentLocation && (
-                <div className="absolute top-2 right-2 bg-white px-2 py-1 rounded text-xs shadow">
-                  GPS ON
-                </div>
-              )}
-            </div>
+            <LiveMap
+              center={currentLocation ? [currentLocation.lat, currentLocation.lng] : undefined}
+              markers={[
+                ...(currentLocation ? [{ lat: currentLocation.lat, lng: currentLocation.lng, label: 'Você' }] : []),
+                ...allDrivers.filter(d => d.location).map(d => ({ lat: d.location.lat, lng: d.location.lng, label: d.name }))
+              ]}
+            />
           </CardContent>
         </Card>
 
+
         {/* Solicitação de Corrida */}
-        <Card>
+        <Card className="shadow-lg border-0 bg-white/90 rounded-2xl">
           <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
+            <CardTitle className="flex items-center gap-2 text-green-700">
               <Navigation className="w-5 h-5" />
-              <span>Solicitar corrida</span>
+              <span className="font-semibold">Solicitar corrida</span>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="origin">De onde você está?</Label>
-              <Select value={originStreet} onValueChange={setOriginStreet} disabled={rideStatus !== 'idle'}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione sua rua atual" />
-                </SelectTrigger>
-                <SelectContent>
-                  {rioPardoStreets.map((street, index) => (
-                    <SelectItem key={index} value={street}>{street}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="destination">Para onde você quer ir?</Label>
-              <Select value={destination} onValueChange={setDestination} disabled={rideStatus !== 'idle'}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione o destino" />
-                </SelectTrigger>
-                <SelectContent>
-                  {rioPardoStreets.filter(street => street !== originStreet).map((street, index) => (
-                    <SelectItem key={index} value={street}>{street}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="origin">Endereço de origem</Label>
+                <Input
+                  id="origin"
+                  type="text"
+                  placeholder="Digite o endereço de origem"
+                  value={originStreet}
+                  onChange={e => setOriginStreet(e.target.value)}
+                  disabled={rideStatus !== 'idle'}
+                  required
+                  className="rounded-xl shadow-sm"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="destination">Endereço de destino</Label>
+                <Input
+                  id="destination"
+                  type="text"
+                  placeholder="Digite o endereço de destino"
+                  value={destination}
+                  onChange={e => setDestination(e.target.value)}
+                  disabled={rideStatus !== 'idle'}
+                  required
+                  className="rounded-xl shadow-sm"
+                />
+              </div>
             </div>
 
             {rideStatus === 'idle' && (
               <Button 
                 onClick={requestRide}
-                className="w-full bg-blue-600 hover:bg-blue-700"
+                className="w-full bg-gradient-to-r from-blue-600 to-green-500 hover:from-blue-700 hover:to-green-600 text-white font-bold py-2 rounded-xl shadow"
                 disabled={loading || !originStreet.trim() || !destination.trim()}
               >
                 {loading ? 'Procurando...' : 'Buscar Motoristas'}
@@ -352,15 +358,14 @@ export default function UserDashboard({ user, onLogout }) {
 
             {rideStatus !== 'idle' && rideStatus !== 'inProgress' && (
               <div className="space-y-3">
-                <div className="flex items-center space-x-2 text-sm">
-                  <Clock className="w-4 h-4 text-blue-600" />
-                  <span>{getRideStatusText()}</span>
+                <div className="flex items-center gap-2 text-sm text-blue-700">
+                  <Clock className="w-4 h-4" />
+                  <span className="font-semibold">{getRideStatusText()}</span>
                 </div>
-
                 <Button 
                   onClick={cancelRide}
                   variant="outline"
-                  className="w-full"
+                  className="w-full border-red-200 text-red-600 hover:bg-red-50 font-semibold rounded-xl"
                 >
                   Cancelar corrida
                 </Button>
@@ -371,36 +376,34 @@ export default function UserDashboard({ user, onLogout }) {
 
         {/* Lista de Motoristas Reais Cadastrados */}
         {rideStatus === 'requesting' && availableDrivers.length > 0 && (
-          <Card>
+          <Card className="shadow-lg border-0 bg-white/90 rounded-2xl">
             <CardHeader>
-              <CardTitle>Motoristas Reais Cadastrados</CardTitle>
-              <CardDescription>Selecione um motorista para solicitar o preço da corrida</CardDescription>
+              <CardTitle className="text-blue-700 font-semibold">Motoristas Reais Cadastrados</CardTitle>
+              <CardDescription className="text-gray-500">Selecione um motorista para solicitar o preço da corrida</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               {availableDrivers.map((driver) => (
                 <div
                   key={driver.id}
                   onClick={() => selectDriver(driver)}
-                  className="p-3 border border-gray-200 rounded-lg hover:bg-blue-50 cursor-pointer transition-colors"
+                  className="p-3 border border-blue-100 bg-blue-50/60 rounded-xl hover:bg-blue-100 cursor-pointer transition-colors shadow-sm flex justify-between items-center"
                 >
-                  <div className="flex justify-between items-start">
-                    <div className="flex items-start space-x-3">
-                      <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
-                        <Car className="w-5 h-5 text-gray-600" />
-                      </div>
-                      <div>
-                        <p className="font-semibold text-gray-900">{driver.name}</p>
-                        <p className="text-sm text-gray-600">{driver.vehicle}</p>
-                        <p className="text-sm text-gray-500">Placa: {driver.plate}</p>
-                        <div className="flex items-center space-x-1 mt-1">
-                          <Star className="w-3 h-3 text-yellow-500 fill-current" />
-                          <span className="text-xs text-gray-600">{driver.rating}</span>
-                        </div>
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-blue-200 rounded-full flex items-center justify-center">
+                      <Car className="w-5 h-5 text-blue-700" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-gray-900">{driver.name}</p>
+                      <p className="text-xs text-gray-600">{driver.vehicle}</p>
+                      <p className="text-xs text-gray-500">Placa: {driver.plate}</p>
+                      <div className="flex items-center gap-1 mt-1">
+                        <Star className="w-3 h-3 text-yellow-500 fill-current" />
+                        <span className="text-xs text-gray-600">{driver.rating}</span>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm font-semibold text-blue-600">{driver.distance}</p>
-                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-bold text-blue-700">{driver.distance}</p>
                   </div>
                 </div>
               ))}
@@ -515,7 +518,7 @@ export default function UserDashboard({ user, onLogout }) {
           </Card>
         )}
 
-        {/* Corrida Confirmada */}
+        {/* Corrida Confirmada + Chat */}
         {rideStatus === 'matched' && selectedDriver && (
           <Card className="border-blue-200 bg-blue-50">
             <CardHeader>
@@ -554,6 +557,34 @@ export default function UserDashboard({ user, onLogout }) {
                 </p>
               </div>
 
+              {/* Chat Passageiro/Motorista */}
+              <div className="p-3 bg-white border border-blue-200 rounded-2xl shadow-inner">
+                <div className="mb-2 font-semibold text-blue-700 flex items-center gap-2"><User className="w-4 h-4" />Chat com o motorista</div>
+                <div style={{maxHeight:200,overflowY:'auto',marginBottom:8}}>
+                  {chatMessages.length === 0 && <div className="text-xs text-gray-400">Nenhuma mensagem ainda.</div>}
+                  {chatMessages.map((msg, i) => (
+                    <div key={i} className={msg.type==='user' ? 'flex justify-end' : 'flex justify-start'}>
+                      <span className={
+                        'inline-block px-3 py-2 rounded-2xl text-xs m-1 max-w-[70%] break-words ' +
+                        (msg.type==='user' ? 'bg-blue-200 text-blue-900' : 'bg-green-100 text-green-900')
+                      }>
+                        <b>{msg.senderName}:</b> {msg.text}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex gap-2 mt-2">
+                  <Input
+                    value={chatInput}
+                    onChange={e=>setChatInput(e.target.value)}
+                    placeholder="Digite sua mensagem..."
+                    onKeyDown={e=>{if(e.key==='Enter'){handleSendMessage()}}}
+                    className="rounded-full shadow-sm"
+                  />
+                  <Button onClick={handleSendMessage} disabled={!chatInput.trim()} className="rounded-full bg-blue-600 hover:bg-blue-700 text-white font-bold px-4">Enviar</Button>
+                </div>
+              </div>
+
               <Button
                 onClick={startRide}
                 className="w-full bg-blue-600 hover:bg-blue-700"
@@ -564,7 +595,7 @@ export default function UserDashboard({ user, onLogout }) {
           </Card>
         )}
 
-        {/* Status da Corrida em Andamento */}
+        {/* Status da Corrida em Andamento + Chat */}
         {rideStatus === 'inProgress' && selectedDriver && (
           <Card>
             <CardHeader>
@@ -589,10 +620,38 @@ export default function UserDashboard({ user, onLogout }) {
                 <div className="text-2xl mb-2">🚗💨</div>
                 <p className="text-sm text-gray-600">O motorista está a caminho do destino</p>
               </div>
+
+              {/* Chat Passageiro/Motorista */}
+              <div className="p-3 bg-white border border-green-200 rounded-2xl shadow-inner mt-2">
+                <div className="mb-2 font-semibold text-green-700 flex items-center gap-2"><User className="w-4 h-4" />Chat com o motorista</div>
+                <div style={{maxHeight:200,overflowY:'auto',marginBottom:8}}>
+                  {chatMessages.length === 0 && <div className="text-xs text-gray-400">Nenhuma mensagem ainda.</div>}
+                  {chatMessages.map((msg, i) => (
+                    <div key={i} className={msg.type==='user' ? 'flex justify-end' : 'flex justify-start'}>
+                      <span className={
+                        'inline-block px-3 py-2 rounded-2xl text-xs m-1 max-w-[70%] break-words ' +
+                        (msg.type==='user' ? 'bg-blue-200 text-blue-900' : 'bg-green-100 text-green-900')
+                      }>
+                        <b>{msg.senderName}:</b> {msg.text}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex gap-2 mt-2">
+                  <Input
+                    value={chatInput}
+                    onChange={e=>setChatInput(e.target.value)}
+                    placeholder="Digite sua mensagem..."
+                    onKeyDown={e=>{if(e.key==='Enter'){handleSendMessage()}}}
+                    className="rounded-full shadow-sm"
+                  />
+                  <Button onClick={handleSendMessage} disabled={!chatInput.trim()} className="rounded-full bg-green-600 hover:bg-green-700 text-white font-bold px-4">Enviar</Button>
+                </div>
+              </div>
             </CardContent>
           </Card>
         )}
-      </div>
+      </main>
     </div>
   )
 }
