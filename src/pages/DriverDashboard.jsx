@@ -1,4 +1,17 @@
 import { useState, useEffect } from 'react'
+// Função para obter localização do navegador
+async function getCurrentLocation() {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      resolve(null)
+    } else {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        (err) => resolve(null)
+      )
+    }
+  })
+}
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -41,7 +54,15 @@ export default function DriverDashboard({ onLogout }) {
     if (driver && driver.id) {
       const updateAvailability = async () => {
         try {
-          await driverService.update(driver.id, { available: isAvailable });
+          let updateData = { available: isAvailable };
+          if (isAvailable) {
+            // Tenta obter localização e salvar junto
+            const loc = await getCurrentLocation();
+            if (loc) {
+              updateData.location = loc;
+            }
+          }
+          await driverService.update(driver.id, updateData);
         } catch (error) {
           console.error("Erro ao atualizar disponibilidade:", error);
         }

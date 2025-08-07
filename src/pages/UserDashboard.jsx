@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { LogOut, MapPin, Navigation, Clock, User, Star, Car, DollarSign, CheckCircle, XCircle } from 'lucide-react'
 import { rideRequestService, driverService } from '../services/firestoreService'
+import { getDistanceKm } from '../lib/utils'
 
 export default function UserDashboard({ user, onLogout }) {
   const [currentLocation, setCurrentLocation] = useState(null)
@@ -14,6 +15,7 @@ export default function UserDashboard({ user, onLogout }) {
   const [destination, setDestination] = useState('')
   const [rideStatus, setRideStatus] = useState('idle') // idle, requesting, waitingPrice, priceReceived, matched, inProgress
   const [availableDrivers, setAvailableDrivers] = useState([])
+  const [allDrivers, setAllDrivers] = useState([])
   const [selectedDriver, setSelectedDriver] = useState(null)
   const [driverPrice, setDriverPrice] = useState(null)
   const [paymentMethod, setPaymentMethod] = useState('')
@@ -38,17 +40,8 @@ export default function UserDashboard({ user, onLogout }) {
     const fetchUserData = async () => {
       if (user?.id) {
         const userData = await userService.getById(user.id);
-        if (userData) {
-          // Atualizar o estado do usuário com os dados do Firestore
-          // Isso é importante caso o usuário tenha atualizado o perfil em outro lugar
-          // ou para garantir que os dados mais recentes sejam usados.
-          // No entanto, o componente UserDashboard já recebe 'user' como prop, então
-          // talvez não seja necessário atualizar o estado 'user' aqui, mas sim
-          // usar os dados do 'userData' diretamente onde for preciso.
-        }
       }
     };
-
     fetchUserData();
 
     // Solicitar localização atual
@@ -61,30 +54,25 @@ export default function UserDashboard({ user, onLogout }) {
           })
         },
         (error) => {
-          console.error("Erro ao obter localização:", error)
-          // Usar localização padrão de Rio Pardo-RS
-          setCurrentLocation({
-            lat: -29.9897,
-            lng: -52.3789
-          })
+          setCurrentLocation({ lat: -29.9897, lng: -52.3789 })
         }
       )
     } else {
-      // Usar localização padrão de Rio Pardo-RS
-      setCurrentLocation({
-        lat: -29.9897,
-        lng: -52.3789
-      })
+      setCurrentLocation({ lat: -29.9897, lng: -52.3789 })
     }
+
+    // Buscar todos os motoristas reais cadastrados
+    const fetchDrivers = async () => {
+      const drivers = await driverService.getAll();
+      setAllDrivers(drivers);
+    };
+    fetchDrivers();
 
     // Escutar mudanças nas solicitações do usuário em tempo real
     let unsubscribe = null;
-    
     if (user?.id) {
       unsubscribe = rideRequestService.onUserRequestsChange(user.id, (requests) => {
         setRideRequests(requests);
-        
-        // Verificar se há propostas de preço
         const priceProposedRequest = requests.find(r => r.status === "priceProposed");
         if (priceProposedRequest && rideStatus === "waitingPrice") {
           setDriverPrice(priceProposedRequest.proposedPrice);
@@ -93,11 +81,8 @@ export default function UserDashboard({ user, onLogout }) {
         }
       });
     }
-
     return () => {
-      if (unsubscribe) {
-        unsubscribe();
-      }
+      if (unsubscribe) unsubscribe();
     };
   }, [user?.id, rideStatus]);
 
@@ -106,35 +91,37 @@ export default function UserDashboard({ user, onLogout }) {
       alert('Por favor, selecione a rua de origem e destino!')
       return
     }
-
     if (originStreet === destination) {
       alert('A rua de origem e destino não podem ser iguais!')
       return
     }
-
     setLoading(true)
     setRideStatus('requesting')
-
     try {
-      // Buscar motoristas disponíveis no Firestore
-      const availableDriversList = await driverService.getAvailable();
-      
-      console.log('Motoristas disponíveis encontrados:', availableDriversList.length);
-      
-      if (availableDriversList.length === 0) {
-        alert('Nenhum motorista disponível no momento. Tente novamente em alguns minutos.');
-        setLoading(false);
-        setRideStatus('idle');
-        return;
+      // Buscar todos os motoristas reais cadastrados
+      let driversList = allDrivers;
+      // Se localização do passageiro e do motorista existirem, calcular distância
+      if (currentLocation) {
+        driversList = driversList.map(driver => {
+          if (driver.location && driver.location.lat && driver.location.lng) {
+            const dist = getDistanceKm(currentLocation.lat, currentLocation.lng, driver.location.lat, driver.location.lng)
+            return { ...driver, distance: `${dist.toFixed(2)} km` }
+          }
+          return { ...driver, distance: 'N/A' }
+        })
+        // Ordenar por menor distância
+        driversList = driversList.sort((a, b) => {
+          if (a.distance === 'N/A') return 1;
+          if (b.distance === 'N/A') return -1;
+          return parseFloat(a.distance) - parseFloat(b.distance);
+        })
       }
-      
-      setAvailableDrivers(availableDriversList);
+      setAvailableDrivers(driversList)
       setLoading(false)
     } catch (error) {
-      console.error('Erro ao buscar motoristas:', error);
-      alert('Erro ao buscar motoristas. Tente novamente.');
-      setLoading(false);
-      setRideStatus('idle');
+      setLoading(false)
+      setRideStatus('idle')
+      alert('Erro ao buscar motoristas. Tente novamente.')
     }
   }
 
@@ -382,11 +369,11 @@ export default function UserDashboard({ user, onLogout }) {
           </CardContent>
         </Card>
 
-        {/* Lista de Motoristas Disponíveis */}
+        {/* Lista de Motoristas Reais Cadastrados */}
         {rideStatus === 'requesting' && availableDrivers.length > 0 && (
           <Card>
             <CardHeader>
-              <CardTitle>Motoristas Disponíveis</CardTitle>
+              <CardTitle>Motoristas Reais Cadastrados</CardTitle>
               <CardDescription>Selecione um motorista para solicitar o preço da corrida</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -413,7 +400,6 @@ export default function UserDashboard({ user, onLogout }) {
                     </div>
                     <div className="text-right">
                       <p className="text-sm font-semibold text-blue-600">{driver.distance}</p>
-                      <p className="text-xs text-gray-500">{driver.eta}</p>
                     </div>
                   </div>
                 </div>
