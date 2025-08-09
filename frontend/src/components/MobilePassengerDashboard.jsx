@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { MapPin, Clock, Star, ArrowRight, Navigation, Car, CreditCard, User } from 'lucide-react';
 import MobileBottomNav from './MobileBottomNav';
+import MapComponent from './MapComponent';
 import '../styles/mobile-native.css';
 import RideRequest from './RideRequest';
 
@@ -98,65 +99,80 @@ const MobilePassengerDashboard = ({ user, onLogout }) => {
   };
 
   const requestRide = async () => {
-    if (!origin || !destination) {
+    if (!origin?.trim() || !destination?.trim()) {
       alert('Por favor, preencha origem e destino');
       return;
     }
 
-    if (origin === destination) {
+    if (origin.trim() === destination.trim()) {
       alert('Origem e destino não podem ser iguais');
       return;
     }
 
     setLoading(true);
     try {
-      // Atualizar localização do usuário primeiro
+      // Tentar obter localização atual
+      let userLocation = null;
       if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(async (position) => {
-          const { latitude, longitude } = position.coords;
+        try {
+          const position = await new Promise((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, {
+              enableHighAccuracy: true,
+              timeout: 10000,
+              maximumAge: 60000
+            });
+          });
+          
+          userLocation = {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude
+          };
 
-          // Atualizar localização do usuário
+          // Atualizar localização do usuário no backend
           await fetch(`${API_BASE}/users/${user.id}/location`, {
             method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ latitude, longitude })
-          });
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(userLocation)
+          }).catch(err => console.log('Erro ao atualizar localização:', err));
 
-          // Solicitar corrida
-          const response = await fetch(`${API_BASE}/rides`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              passenger_id: user.id,
-              origin,
-              destination
-            })
-          });
+        } catch (geoError) {
+          console.log('Erro de geolocalização:', geoError);
+        }
+      }
 
-          if (response.ok) {
-            const ride = await response.json();
-            setCurrentRide(ride);
-            setActiveTab('map');
-            alert('Corrida solicitada com sucesso! Procurando motorista...');
-            fetchRides(); // Atualizar lista de corridas
-          } else {
-            const error = await response.json();
-            alert(`Erro ao solicitar corrida: ${error.error || 'Erro desconhecido'}`);
-          }
-        }, (error) => {
-          console.error('Erro ao obter localização:', error);
-          alert('Não foi possível obter sua localização. Certifique-se de permitir o acesso à localização.');
-        });
+      // Criar corrida
+      const rideData = {
+        passenger_id: user.id,
+        origin: origin.trim(),
+        destination: destination.trim()
+      };
+
+      if (userLocation) {
+        rideData.origin_lat = userLocation.latitude;
+        rideData.origin_lng = userLocation.longitude;
+      }
+
+      const response = await fetch(`${API_BASE}/rides`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(rideData)
+      });
+
+      if (response.ok) {
+        const ride = await response.json();
+        setCurrentRide(ride);
+        setActiveTab('map');
+        setOrigin('');
+        setDestination('');
+        alert('✅ Corrida solicitada com sucesso! Procurando motorista...');
+        fetchRides();
       } else {
-        alert('Geolocalização não é suportada pelo seu dispositivo');
+        const error = await response.json().catch(() => ({ error: 'Erro desconhecido' }));
+        alert(`❌ Erro ao solicitar corrida: ${error.error}`);
       }
     } catch (error) {
       console.error('Erro ao solicitar corrida:', error);
-      alert('Erro ao solicitar corrida. Tente novamente.');
+      alert('❌ Erro de conexão. Verifique sua internet e tente novamente.');
     } finally {
       setLoading(false);
     }
@@ -219,29 +235,9 @@ const MobilePassengerDashboard = ({ user, onLogout }) => {
               <Car size={24} style={{ color: 'white' }} />
             </div>
             <div className="user-info">
-              <h4 className="user-name">UberX</h4>
-              <p className="user-email">Econômico para o dia a dia</p>
-              <p className="user-type">A partir de R$ 8,50</p>
-            </div>
-            <ArrowRight size={20} style={{ color: 'var(--text-secondary)' }} />
-          </div>
-
-          <div className="user-card" style={{ cursor: 'pointer' }}>
-            <div style={{
-              width: '48px',
-              height: '48px',
-              borderRadius: '12px',
-              background: '#1F2937',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              <Car size={24} style={{ color: 'white' }} />
-            </div>
-            <div className="user-info">
-              <h4 className="user-name">Uber Black</h4>
-              <p className="user-email">Conforto premium</p>
-              <p className="user-type">A partir de R$ 15,00</p>
+              <h4 className="user-name">Corrida Padrão</h4>
+              <p className="user-email">Transporte econômico</p>
+              <p className="user-type">Tarifa calculada em tempo real</p>
             </div>
             <ArrowRight size={20} style={{ color: 'var(--text-secondary)' }} />
           </div>
@@ -425,22 +421,14 @@ const MobilePassengerDashboard = ({ user, onLogout }) => {
           margin: '0 0 16px 0',
           color: 'var(--text-primary)'
         }}>
-          Mapa
+          Mapa - Localização Atual
         </h3>
-        <div style={{
-          height: '300px',
-          background: 'var(--secondary-gray)',
-          borderRadius: 'var(--radius-mobile)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: 'var(--text-secondary)'
-        }}>
-          <div style={{ textAlign: 'center' }}>
-            <MapPin size={48} style={{ margin: '0 auto 16px', opacity: 0.3 }} />
-            <p style={{ margin: 0 }}>Mapa será carregado aqui</p>
-          </div>
-        </div>
+        <MapComponent
+          currentUser={user}
+          ride={currentRide}
+          height="350px"
+          showCurrentLocation={true}
+        />
       </div>
     </div>
   );
