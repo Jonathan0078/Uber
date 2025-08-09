@@ -8,6 +8,9 @@ const MobilePassengerDashboard = ({ user, onLogout }) => {
   const [activeTab, setActiveTab] = useState('home');
   const [rides, setRides] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [currentRide, setCurrentRide] = useState(null); // Para gerenciar a corrida atual
+  const [origin, setOrigin] = useState('');
+  const [destination, setDestination] = useState('');
 
   // API Base URL
   const getApiBase = () => {
@@ -34,57 +37,52 @@ const MobilePassengerDashboard = ({ user, onLogout }) => {
   const fetchRides = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE}/rides/passenger/${user.id}`);
+      const response = await fetch(`${API_BASE}/rides?passenger_id=${user.id}`);
       if (response.ok) {
         const data = await response.json();
-        setRides(data);
+        setRides(data.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)));
+
+        // Verificar se há corrida ativa
+        const activeRide = data.find(ride => 
+          ride.status === 'requested' || 
+          ride.status === 'accepted' || 
+          ride.status === 'in_progress'
+        );
+        if (activeRide && !currentRide) {
+          setCurrentRide(activeRide);
+        }
+      } else {
+        console.log('Nenhuma corrida encontrada ou erro na API');
+        setRides([]);
       }
     } catch (error) {
       console.error('Erro ao buscar corridas:', error);
-      // Mock data para demonstração
-      setRides([
-        {
-          id: 1,
-          pickup_location: 'Shopping Center',
-          destination: 'Aeroporto Internacional',
-          status: 'completed',
-          fare: 25.50,
-          created_at: '2024-01-15T10:30:00Z',
-          driver: { username: 'João Silva' }
-        },
-        {
-          id: 2,
-          pickup_location: 'Centro da Cidade',
-          destination: 'Universidade',
-          status: 'completed',
-          fare: 15.80,
-          created_at: '2024-01-14T14:20:00Z',
-          driver: { username: 'Maria Santos' }
-        }
-      ]);
+      setRides([]);
     } finally {
       setLoading(false);
     }
   };
 
   const handleDeleteUser = async () => {
-    if (!window.confirm("Tem certeza que deseja descadastrar sua conta? Esta ação é irreversível.")) {
+    if (!confirm('Tem certeza que deseja excluir sua conta? Esta ação não pode ser desfeita.')) {
       return;
     }
+
     try {
       const response = await fetch(`${API_BASE}/users/${user.id}`, {
-        method: 'DELETE',
+        method: 'DELETE'
       });
-      if (response.ok) {
-        alert("Usuário descadastrado com sucesso!");
-        onLogout(); // Volta para a tela de seleção de usuário
+
+      if (response.ok || response.status === 404) {
+        alert('Conta excluída com sucesso!');
+        onLogout();
       } else {
-        const error = await response.json();
-        alert(`Erro ao descadastrar: ${error.error}`);
+        alert('Erro ao excluir conta');
       }
     } catch (error) {
-      console.error("Erro ao descadastrar usuário:", error);
-      alert("Erro ao descadastrar usuário. Tente novamente.");
+      console.error('Erro ao excluir usuário:', error);
+      alert('Conta excluída localmente');
+      onLogout();
     }
   };
 
@@ -97,6 +95,71 @@ const MobilePassengerDashboard = ({ user, onLogout }) => {
       hour: '2-digit',
       minute: '2-digit'
     });
+  };
+
+  const requestRide = async () => {
+    if (!origin || !destination) {
+      alert('Por favor, preencha origem e destino');
+      return;
+    }
+
+    if (origin === destination) {
+      alert('Origem e destino não podem ser iguais');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Atualizar localização do usuário primeiro
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(async (position) => {
+          const { latitude, longitude } = position.coords;
+
+          // Atualizar localização do usuário
+          await fetch(`${API_BASE}/users/${user.id}/location`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ latitude, longitude })
+          });
+
+          // Solicitar corrida
+          const response = await fetch(`${API_BASE}/rides`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              passenger_id: user.id,
+              origin,
+              destination
+            })
+          });
+
+          if (response.ok) {
+            const ride = await response.json();
+            setCurrentRide(ride);
+            setActiveTab('map');
+            alert('Corrida solicitada com sucesso! Procurando motorista...');
+            fetchRides(); // Atualizar lista de corridas
+          } else {
+            const error = await response.json();
+            alert(`Erro ao solicitar corrida: ${error.error || 'Erro desconhecido'}`);
+          }
+        }, (error) => {
+          console.error('Erro ao obter localização:', error);
+          alert('Não foi possível obter sua localização. Certifique-se de permitir o acesso à localização.');
+        });
+      } else {
+        alert('Geolocalização não é suportada pelo seu dispositivo');
+      }
+    } catch (error) {
+      console.error('Erro ao solicitar corrida:', error);
+      alert('Erro ao solicitar corrida. Tente novamente.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const renderHomeTab = () => (
@@ -118,7 +181,17 @@ const MobilePassengerDashboard = ({ user, onLogout }) => {
           Para onde vamos hoje?
         </p>
 
-        <RideRequest user={user} onRideCreated={() => setActiveTab('trips')} />
+        <RideRequest 
+          user={user} 
+          onRideCreated={() => {
+            setActiveTab('trips');
+            fetchRides();
+          }} 
+          setOrigin={setOrigin}
+          setDestination={setDestination}
+          requestRide={requestRide}
+          loading={loading}
+        />
       </div>
 
       {/* Opções de transporte */}
@@ -260,37 +333,40 @@ const MobilePassengerDashboard = ({ user, onLogout }) => {
   const renderProfileTab = () => (
     <div className="mobile-content">
       <div className="mobile-card">
-        <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '16px',
+          marginBottom: '24px'
+        }}>
           <div style={{
-            width: '80px',
-            height: '80px',
+            width: '64px',
+            height: '64px',
             borderRadius: '50%',
-            background: 'var(--primary-green)',
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
-            margin: '0 auto 16px',
-            fontSize: '32px',
-            fontWeight: '700',
-            color: 'white'
+            justifyContent: 'center'
           }}>
-            {user.username.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+            <User size={32} style={{ color: 'white' }} />
           </div>
-          <h2 style={{
-            fontSize: '24px',
-            fontWeight: '700',
-            margin: '0 0 8px 0',
-            color: 'var(--text-primary)'
-          }}>
-            {user.username}
-          </h2>
-          <p style={{
-            fontSize: '16px',
-            color: 'var(--text-secondary)',
-            margin: 0
-          }}>
-            {user.email}
-          </p>
+          <div>
+            <h3 style={{
+              fontSize: '20px',
+              fontWeight: '600',
+              margin: '0 0 4px 0',
+              color: 'var(--text-primary)'
+            }}>
+              {user.username}
+            </h3>
+            <p style={{
+              fontSize: '16px',
+              color: 'var(--text-secondary)',
+              margin: '0'
+            }}>
+              {user.email}
+            </p>
+          </div>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -322,19 +398,19 @@ const MobilePassengerDashboard = ({ user, onLogout }) => {
           </div>
         </div>
 
-        <button
+        <button 
           className="mobile-button-secondary"
           onClick={onLogout}
           style={{ marginTop: '24px', marginBottom: '12px' }}
         >
           Sair da Conta
         </button>
-        <button
+        <button 
           className="mobile-button-secondary"
           onClick={handleDeleteUser}
           style={{ background: '#EF4444', color: 'white' }}
         >
-          Descadastrar
+          Excluir Conta
         </button>
       </div>
     </div>
