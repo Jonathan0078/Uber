@@ -11,6 +11,9 @@ class User(db.Model):
     email = db.Column(db.String(120), unique=True, nullable=False)
     user_type = db.Column(db.String(20), nullable=False)  # 'passenger' or 'driver'
     is_available = db.Column(db.Boolean, default=False)  # Para motoristas
+    latitude = db.Column(db.Float, nullable=True)  # Localização atual
+    longitude = db.Column(db.Float, nullable=True)  # Localização atual
+    location_updated_at = db.Column(db.DateTime, nullable=True)  # Última atualização de localização
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def __repr__(self):
@@ -23,5 +26,8 @@ class User(db.Model):
             'email': self.email,
             'user_type': self.user_type,
             'is_available': self.is_available,
+            'latitude': self.latitude,
+            'longitude': self.longitude,
+            'location_updated_at': self.location_updated_at.isoformat() if self.location_updated_at else None,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
