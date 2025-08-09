@@ -1,9 +1,8 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button.jsx';
 import { Input } from '@/components/ui/input.jsx';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card.jsx';
-import { MapPin, Navigation, Clock } from 'lucide-react';
+import { MapPin, Navigation, Clock, Loader2 } from 'lucide-react';
 
 const RideRequest = ({ user, onRideCreated }) => {
   const [origin, setOrigin] = useState('');
@@ -184,7 +183,7 @@ const RideRequest = ({ user, onRideCreated }) => {
         >
           {loading ? (
             <>
-              <Clock className="h-4 w-4 mr-2 animate-spin" />
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               Processando...
             </>
           ) : (
