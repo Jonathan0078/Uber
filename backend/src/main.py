@@ -20,7 +20,7 @@ def create_app():
     allowed_origins = [
         "https://Jonathan0078.github.io",
         "https://*.replit.dev",
-        "https://*.replit.app", 
+        "https://*.replit.app",
         "http://localhost:5173",
         "http://127.0.0.1:5173",
         "http://localhost:3000",
@@ -40,8 +40,23 @@ def create_app():
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
     db.init_app(app)
+
+    # Criar tabelas
     with app.app_context():
         db.create_all()
+
+        # Adicionar colunas de localização se não existirem
+        try:
+            from sqlalchemy import text
+            db.engine.execute(text('ALTER TABLE users ADD COLUMN latitude FLOAT'))
+            db.engine.execute(text('ALTER TABLE users ADD COLUMN longitude FLOAT'))
+            db.engine.execute(text('ALTER TABLE users ADD COLUMN location_updated_at DATETIME'))
+            print("Colunas de localização adicionadas!")
+        except Exception as e:
+            # Colunas já existem ou erro na migração
+            pass
+
+        print("Tabelas criadas/atualizadas com sucesso!")
 
     @app.route('/')
     def home():
@@ -51,7 +66,7 @@ def create_app():
             "status": "running",
             "endpoints": {
                 "users": "/api/users",
-                "rides": "/api/rides", 
+                "rides": "/api/rides",
                 "messages": "/api/messages"
             }
         })
