@@ -1,0 +1,57 @@
+name: Uber App Communication
+
+on:
+  repository_dispatch:
+    types: [message_sent]
+
+jobs:
+  process_message:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        
+    - name: Process message
+      run: |
+        echo "Processing message from GitHub Actions"
+        echo "Event type: ${{ github.event.action }}"
+        echo "Message data: ${{ toJson(github.event.client_payload) }}"
+        
+        # Criar diretório de mensagens se não existir
+        mkdir -p messages
+        
+        # Salvar mensagem em arquivo JSON
+        echo '${{ toJson(github.event.client_payload) }}' > messages/message_$(date +%s).json
+        
+        # Atualizar arquivo de mensagens consolidado
+        if [ ! -f messages/all_messages.json ]; then
+          echo "[]" > messages/all_messages.json
+        fi
+        
+        # Adicionar nova mensagem ao arquivo consolidado
+        jq '. += [${{ toJson(github.event.client_payload) }}]' messages/all_messages.json > messages/temp.json
+        mv messages/temp.json messages/all_messages.json
+        
+        echo "Message processed and saved"
+        
+    - name: Commit and push changes
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add messages/
+        git commit -m "Add new message via GitHub Actions" || exit 0
+        git push
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Notify completion
+      run: |
+        echo "Message processing completed"
+        echo "Message saved to repository"
+
