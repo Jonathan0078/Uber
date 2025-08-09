@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import path from 'path'
 
-// https://vite.dev/config/
+// https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react(),tailwindcss()],
   resolve: {
@@ -11,7 +11,7 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
-  base: '/Uber/',
+  base: '/Uber/', // Base URL para GitHub Pages
   build: {
     outDir: 'dist',
     assetsDir: 'assets',

@@ -9,19 +9,28 @@ const UserSelector = ({ onUserSelect }) => {
   const [newUser, setNewUser] = useState({ username: '', email: '', user_type: 'passenger' });
   const [loading, setLoading] = useState(false);
 
+  // API Base URL - ajusta automaticamente para GitHub Pages ou local
+  const API_BASE = window.location.hostname === 'localhost' 
+    ? '/api' 
+    : 'https://uber-backend-api.herokuapp.com/api'; // Substitua pela URL do seu backend em produção
+
   useEffect(() => {
     fetchUsers();
   }, []);
 
   const fetchUsers = async () => {
     try {
-      const response = await fetch('/api/users');
+      const response = await fetch(`${API_BASE}/users`);
       if (response.ok) {
         const data = await response.json();
         setUsers(data);
       }
     } catch (error) {
       console.error('Erro ao buscar usuários:', error);
+      // Para GitHub Pages, usar dados mock se API não estiver disponível
+      if (window.location.hostname !== 'localhost') {
+        setUsers([]);
+      }
     }
   };
 
@@ -33,7 +42,7 @@ const UserSelector = ({ onUserSelect }) => {
 
     setLoading(true);
     try {
-      const response = await fetch('/api/users', {
+      const response = await fetch(`${API_BASE}/users`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -52,10 +61,26 @@ const UserSelector = ({ onUserSelect }) => {
       }
     } catch (error) {
       console.error('Erro ao criar usuário:', error);
-      alert('Erro ao criar usuário');
+      // Para GitHub Pages, simular criação local
+      if (window.location.hostname !== 'localhost') {
+        const mockUser = {
+          id: Date.now(),
+          ...newUser,
+          is_available: newUser.user_type === 'driver' ? false : null
+        };
+        setUsers([...users, mockUser]);
+        setNewUser({ username: '', email: '', user_type: 'passenger' });
+        alert('Usuário criado com sucesso! (Modo demonstração)');
+      } else {
+        alert('Erro ao criar usuário');
+      }
     } finally {
       setLoading(false);
     }
+  };
+
+  const selectUser = (user) => {
+    onUserSelect(user);
   };
 
   return (
@@ -156,7 +181,7 @@ const UserSelector = ({ onUserSelect }) => {
                       <Car className="h-8 w-8 text-green-500" />
                     )}
                     <div>
-                      <p className="font-medium">{user.username}</p>
+                      <h3 className="font-semibold">{user.username}</h3>
                       <p className="text-sm text-gray-500">{user.email}</p>
                       <p className="text-xs text-gray-400 capitalize">
                         {user.user_type === 'passenger' ? 'Passageiro' : 'Motorista'}
