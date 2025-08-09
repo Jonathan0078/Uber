@@ -46,7 +46,14 @@ const MobileUserSelector = ({ onUserSelect }) => {
 
   const createUser = async () => {
     if (!newUser.username || !newUser.email) {
-      alert('Por favor, preencha nome e email');
+      alert("Por favor, preencha nome e email");
+      return;
+    }
+
+    // Check for existing user of the same type
+    const existingUserOfType = users.find(user => user.user_type === newUser.user_type);
+    if (existingUserOfType) {
+      alert(`Já existe um usuário do tipo ${newUser.user_type === 'passenger' ? 'Passageiro' : 'Motorista'} neste dispositivo. Por favor, selecione-o ou descadastre-o antes de criar um novo.`);
       return;
     }
 

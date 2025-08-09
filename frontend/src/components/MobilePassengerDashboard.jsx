@@ -66,6 +66,27 @@ const MobilePassengerDashboard = ({ user, onLogout }) => {
     }
   };
 
+  const handleDeleteUser = async () => {
+    if (!window.confirm("Tem certeza que deseja descadastrar sua conta? Esta ação é irreversível.")) {
+      return;
+    }
+    try {
+      const response = await fetch(`${API_BASE}/users/${user.id}`, {
+        method: 'DELETE',
+      });
+      if (response.ok) {
+        alert("Usuário descadastrado com sucesso!");
+        onLogout(); // Volta para a tela de seleção de usuário
+      } else {
+        const error = await response.json();
+        alert(`Erro ao descadastrar: ${error.error}`);
+      }
+    } catch (error) {
+      console.error("Erro ao descadastrar usuário:", error);
+      alert("Erro ao descadastrar usuário. Tente novamente.");
+    }
+  };
+
   const formatDate = (dateString) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('pt-BR', {
@@ -343,9 +364,16 @@ const MobilePassengerDashboard = ({ user, onLogout }) => {
         <button 
           className="mobile-button-secondary"
           onClick={onLogout}
-          style={{ marginTop: '24px' }}
+          style={{ marginTop: '24px', marginBottom: '12px' }}
         >
           Sair da Conta
+        </button>
+        <button 
+          className="mobile-button-secondary"
+          onClick={handleDeleteUser}
+          style={{ background: '#EF4444', color: 'white' }}
+        >
+          Descadastrar
         </button>
       </div>
     </div>
