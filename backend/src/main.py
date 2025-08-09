@@ -16,8 +16,17 @@ def create_app():
     app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), 'static'))
     app.config['SECRET_KEY'] = 'asdf#FGSgvasgf$5$WGT'
 
-    # Habilitar CORS para todas as rotas - permitir GitHub Pages
-    CORS(app, origins=["*"], methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
+    # Habilitar CORS para GitHub Pages, Replit e desenvolvimento
+    allowed_origins = [
+        "https://Jonathan0078.github.io",
+        "https://*.replit.dev",
+        "https://*.replit.app", 
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "https://JonathanOliveira.pythonanywhere.com"
+    ]
+    CORS(app, origins=allowed_origins, methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"], supports_credentials=True, allow_headers=["Content-Type", "Authorization"])
 
     # Registrar blueprints
     app.register_blueprint(user_bp, url_prefix='/api')
@@ -29,7 +38,7 @@ def create_app():
     os.makedirs(os.path.dirname(database_path), exist_ok=True)
     app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{database_path}"
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    
+
     db.init_app(app)
     with app.app_context():
         db.create_all()
