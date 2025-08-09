@@ -15,9 +15,20 @@ const PassengerDashboard = ({ user }) => {
   const [showChat, setShowChat] = useState(false);
 
   // API Base URL
-  const API_BASE = window.location.hostname === 'localhost' 
-    ? '/api' 
-    : 'https://JonathanOliveira.pythonanywhere.com/api';
+  const getApiBase = () => {
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      return 'http://localhost:5000/api';
+    }
+    if (window.location.hostname.includes('replit.dev') || window.location.hostname.includes('replit.app')) {
+      return `https://${window.location.hostname}/api`;
+    }
+    if (window.location.hostname.includes('github.io')) {
+      return 'https://JonathanOliveira.pythonanywhere.com/api';
+    }
+    return 'https://JonathanOliveira.pythonanywhere.com/api';
+  };
+
+  const API_BASE = getApiBase();
 
   useEffect(() => {
     if (user) {
@@ -31,7 +42,7 @@ const PassengerDashboard = ({ user }) => {
       if (response.ok) {
         const data = await response.json();
         setRides(data);
-        
+
         // Encontrar corrida ativa
         const activeRide = data.find(ride => 
           ['requested', 'accepted', 'in_progress'].includes(ride.status)
@@ -198,7 +209,7 @@ const PassengerDashboard = ({ user }) => {
                 <p className="text-lg">{currentRide.destination}</p>
               </div>
             </div>
-            
+
             {currentRide.driver && (
               <div className="bg-white p-4 rounded-lg">
                 <p className="text-sm font-medium text-gray-600 mb-2">Motorista</p>
@@ -214,7 +225,7 @@ const PassengerDashboard = ({ user }) => {
                 </Button>
               </div>
             )}
-            
+
             <div className="text-sm text-gray-500 flex items-center gap-2">
               <Clock className="h-4 w-4" />
               Solicitada em {new Date(currentRide.created_at).toLocaleString('pt-BR')}
@@ -265,4 +276,3 @@ const PassengerDashboard = ({ user }) => {
 };
 
 export default PassengerDashboard;
-
