@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge.jsx';
 import { MapPin, Car, MessageCircle, Clock } from 'lucide-react';
 import ChatComponent from './ChatComponent.jsx';
+import MapComponent from './MapComponent.jsx';
 
 const PassengerDashboard = ({ user }) => {
   const [origin, setOrigin] = useState('');
@@ -232,6 +233,16 @@ const PassengerDashboard = ({ user }) => {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* Mapa GPS */}
+      {currentRide && (
+        <MapComponent 
+          currentUser={user}
+          ride={currentRide}
+          showCurrentLocation={true}
+          height="500px"
+        />
       )}
 
       {/* Histórico de Corridas */}
