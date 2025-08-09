@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card.jsx';
 import { Button } from '@/components/ui/button.jsx';
 import { Badge } from '@/components/ui/badge.jsx';
@@ -66,7 +66,8 @@ const MapComponent = ({
   ride = null, 
   showCurrentLocation = true,
   height = "400px",
-  onLocationUpdate = null 
+  onLocationUpdate = null,
+  routeData = null // Nova prop para dados da rota
 }) => {
   const [currentLocation, setCurrentLocation] = useState(null);
   const [driverLocation, setDriverLocation] = useState(null);
@@ -252,6 +253,22 @@ const MapComponent = ({
   const originCoords = ride ? getCoordinatesFromAddress(ride.origin) : null;
   const destinationCoords = ride ? getCoordinatesFromAddress(ride.destination) : null;
 
+  // Converter geometria GeoJSON para coordenadas do Polyline
+  const getRouteCoordinates = () => {
+    if (!routeData || !routeData.route || !routeData.route.geometry) {
+      return [];
+    }
+
+    const geometry = routeData.route.geometry;
+    if (geometry.type === 'LineString') {
+      // Converter de [lng, lat] para [lat, lng] para o Leaflet
+      return geometry.coordinates.map(coord => [coord[1], coord[0]]);
+    }
+    return [];
+  };
+
+  const routeCoordinates = getRouteCoordinates();
+
   return (
     <Card>
       <CardHeader>
@@ -347,6 +364,32 @@ const MapComponent = ({
                 </Popup>
               </Marker>
             )}
+
+            {/* Rota calculada */}
+            {routeCoordinates.length > 0 && (
+              <Polyline
+                positions={routeCoordinates}
+                color="#3B82F6"
+                weight={4}
+                opacity={0.7}
+              />
+            )}
+
+            {/* Waypoints da rota */}
+            {ride && ride.waypoints && ride.waypoints.map((waypoint, index) => (
+              <Marker
+                key={`waypoint-${index}`}
+                position={[waypoint.lat, waypoint.lng]}
+                icon={createCustomIcon('#F59E0B', `${index + 1}`)}
+              >
+                <Popup>
+                  <div className="text-center">
+                    <h3 className="font-semibold">Parada {index + 1}</h3>
+                    <p className="text-sm text-gray-600">{waypoint.address}</p>
+                  </div>
+                </Popup>
+              </Marker>
+            ))}
 
             {/* Origem da corrida */}
             {originCoords && (

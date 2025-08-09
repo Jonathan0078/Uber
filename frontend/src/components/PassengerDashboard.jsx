@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge.jsx';
 import { MapPin, Car, MessageCircle, Clock } from 'lucide-react';
 import ChatComponent from './ChatComponent.jsx';
 import MapComponent from './MapComponent.jsx';
+import RouteManager from './RouteManager.jsx';
 
 const PassengerDashboard = ({ user }) => {
   const [origin, setOrigin] = useState('');
@@ -14,6 +15,8 @@ const PassengerDashboard = ({ user }) => {
   const [rides, setRides] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showChat, setShowChat] = useState(false);
+  const [routeData, setRouteData] = useState(null);
+  const [driverDistance, setDriverDistance] = useState(null);
 
   // API Base URL
   const getApiBase = () => {
@@ -114,6 +117,20 @@ const PassengerDashboard = ({ user }) => {
       cancelled: 'Cancelada',
     };
     return texts[status] || status;
+  };
+
+  // Callback para atualização de rota
+  const handleRouteUpdate = (updatedRide) => {
+    setCurrentRide(updatedRide);
+    // Atualizar também na lista de corridas
+    setRides(rides.map(ride => 
+      ride.id === updatedRide.id ? updatedRide : ride
+    ));
+  };
+
+  // Callback para quando a distância é calculada
+  const handleDistanceCalculated = (distanceData) => {
+    setDriverDistance(distanceData.driver_to_destination);
   };
 
   if (showChat && currentRide) {
@@ -235,6 +252,16 @@ const PassengerDashboard = ({ user }) => {
         </Card>
       )}
 
+      {/* Gerenciador de Rota */}
+      {currentRide && (
+        <RouteManager 
+          currentUser={user}
+          ride={currentRide}
+          onRouteUpdate={handleRouteUpdate}
+          onDistanceCalculated={handleDistanceCalculated}
+        />
+      )}
+
       {/* Mapa GPS */}
       {currentRide && (
         <MapComponent 
@@ -242,6 +269,7 @@ const PassengerDashboard = ({ user }) => {
           ride={currentRide}
           showCurrentLocation={true}
           height="500px"
+          routeData={routeData}
         />
       )}
 

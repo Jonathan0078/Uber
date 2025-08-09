@@ -2,8 +2,10 @@ from flask import Blueprint, request, jsonify
 from src.models.user import db, User
 from src.models.ride import Ride
 from src.models.message import Message
+from src.services.routing import OSRMRoutingService, format_distance, format_duration
 
 ride_bp = Blueprint('ride', __name__)
+routing_service = OSRMRoutingService()
 
 @ride_bp.route('/rides', methods=['POST'])
 def create_ride():
@@ -25,8 +27,16 @@ def create_ride():
             passenger_id=data['passenger_id'],
             origin=data['origin'],
             destination=data['destination'],
+            origin_lat=data.get('origin_lat'),
+            origin_lng=data.get('origin_lng'),
+            destination_lat=data.get('destination_lat'),
+            destination_lng=data.get('destination_lng'),
             status='requested'
         )
+        
+        # Adicionar waypoints se fornecidos
+        if 'waypoints' in data:
+            ride.set_waypoints(data['waypoints'])
         
         db.session.add(ride)
         db.session.commit()
@@ -35,6 +45,137 @@ def create_ride():
         
     except Exception as e:
         db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+@ride_bp.route('/rides/<int:ride_id>/route', methods=['PUT'])
+def update_ride_route(ride_id):
+    """Atualizar rota da corrida (adicionar/remover destinos)"""
+    try:
+        data = request.get_json()
+        
+        ride = Ride.query.get(ride_id)
+        if not ride:
+            return jsonify({'error': 'Corrida não encontrada'}), 404
+        
+        # Atualizar origem se fornecida
+        if 'origin' in data:
+            ride.origin = data['origin']
+        if 'origin_lat' in data and 'origin_lng' in data:
+            ride.origin_lat = data['origin_lat']
+            ride.origin_lng = data['origin_lng']
+        
+        # Atualizar destino se fornecido
+        if 'destination' in data:
+            ride.destination = data['destination']
+        if 'destination_lat' in data and 'destination_lng' in data:
+            ride.destination_lat = data['destination_lat']
+            ride.destination_lng = data['destination_lng']
+        
+        # Atualizar waypoints se fornecidos
+        if 'waypoints' in data:
+            ride.set_waypoints(data['waypoints'])
+        
+        db.session.commit()
+        
+        return jsonify(ride.to_dict()), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+@ride_bp.route('/rides/<int:ride_id>/calculate-route', methods=['POST'])
+def calculate_ride_route(ride_id):
+    """Calcular rota da corrida usando OSRM"""
+    try:
+        ride = Ride.query.get(ride_id)
+        if not ride:
+            return jsonify({'error': 'Corrida não encontrada'}), 404
+        
+        # Verificar se temos coordenadas
+        if not all([ride.origin_lat, ride.origin_lng, ride.destination_lat, ride.destination_lng]):
+            return jsonify({'error': 'Coordenadas de origem e destino são obrigatórias'}), 400
+        
+        # Montar lista de coordenadas (longitude, latitude para OSRM)
+        coordinates = [(ride.origin_lng, ride.origin_lat)]
+        
+        # Adicionar waypoints se existirem
+        waypoints = ride.get_waypoints()
+        for waypoint in waypoints:
+            if 'lng' in waypoint and 'lat' in waypoint:
+                coordinates.append((waypoint['lng'], waypoint['lat']))
+        
+        # Adicionar destino
+        coordinates.append((ride.destination_lng, ride.destination_lat))
+        
+        # Calcular rota
+        route_data = routing_service.calculate_route(coordinates)
+        
+        if not route_data:
+            return jsonify({'error': 'Não foi possível calcular a rota'}), 500
+        
+        # Formatar resposta
+        response = {
+            'ride_id': ride_id,
+            'route': route_data,
+            'formatted_distance': format_distance(route_data['distance']),
+            'formatted_duration': format_duration(route_data['duration']),
+            'coordinates': coordinates
+        }
+        
+        return jsonify(response), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@ride_bp.route('/rides/<int:ride_id>/distance-to-driver', methods=['POST'])
+def calculate_distance_to_driver(ride_id):
+    """Calcular distância do motorista ao destino da corrida"""
+    try:
+        data = request.get_json()
+        
+        ride = Ride.query.get(ride_id)
+        if not ride:
+            return jsonify({'error': 'Corrida não encontrada'}), 404
+        
+        if not ride.driver_id:
+            return jsonify({'error': 'Corrida não possui motorista'}), 400
+        
+        # Coordenadas do motorista (vindas do frontend)
+        driver_lat = data.get('driver_lat')
+        driver_lng = data.get('driver_lng')
+        
+        if not driver_lat or not driver_lng:
+            return jsonify({'error': 'Coordenadas do motorista são obrigatórias'}), 400
+        
+        # Verificar se temos coordenadas do destino
+        if not ride.destination_lat or not ride.destination_lng:
+            return jsonify({'error': 'Coordenadas do destino não encontradas'}), 400
+        
+        # Calcular rota do motorista ao destino
+        coordinates = [
+            (driver_lng, driver_lat),
+            (ride.destination_lng, ride.destination_lat)
+        ]
+        
+        route_data = routing_service.calculate_route(coordinates)
+        
+        if not route_data:
+            return jsonify({'error': 'Não foi possível calcular a distância'}), 500
+        
+        response = {
+            'ride_id': ride_id,
+            'driver_to_destination': {
+                'distance': route_data['distance'],
+                'duration': route_data['duration'],
+                'formatted_distance': format_distance(route_data['distance']),
+                'formatted_duration': format_duration(route_data['duration']),
+                'geometry': route_data['geometry']
+            }
+        }
+        
+        return jsonify(response), 200
+        
+    except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 @ride_bp.route('/rides/<int:ride_id>/accept', methods=['POST'])
