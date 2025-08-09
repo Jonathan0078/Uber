@@ -1,0 +1,28 @@
+{
+  "name": "Uber App - Transporte Rápido e Seguro",
+  "short_name": "Uber App",
+  "description": "Aplicativo de transporte para passageiros e motoristas",
+  "start_url": "/Uber/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#000000",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/Uber/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/Uber/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable any"
+    }
+  ],
+  "categories": ["travel", "transportation"],
+  "lang": "pt-BR",
+  "dir": "ltr"
+}
+
