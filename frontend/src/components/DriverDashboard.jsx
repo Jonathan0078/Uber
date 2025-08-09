@@ -13,6 +13,11 @@ const DriverDashboard = ({ user }) => {
   const [loading, setLoading] = useState(false);
   const [showChat, setShowChat] = useState(false);
 
+  // API Base URL
+  const API_BASE = window.location.hostname === 'localhost' 
+    ? '/api' 
+    : 'https://JonathanOliveira.pythonanywhere.com/api';
+
   useEffect(() => {
     if (user) {
       fetchAvailableRides();
@@ -34,7 +39,7 @@ const DriverDashboard = ({ user }) => {
 
   const fetchAvailableRides = async () => {
     try {
-      const response = await fetch('/api/rides?status=requested');
+      const response = await fetch(`${API_BASE}/rides?status=requested`);
       if (response.ok) {
         const data = await response.json();
         setAvailableRides(data);
@@ -46,7 +51,7 @@ const DriverDashboard = ({ user }) => {
 
   const fetchMyRides = async () => {
     try {
-      const response = await fetch(`/api/rides?driver_id=${user.id}`);
+      const response = await fetch(`${API_BASE}/rides?driver_id=${user.id}`);
       if (response.ok) {
         const data = await response.json();
         setMyRides(data);
@@ -65,7 +70,7 @@ const DriverDashboard = ({ user }) => {
   const toggleAvailability = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/users/${user.id}`, {
+      const response = await fetch(`${API_BASE}/users/${user.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -92,7 +97,7 @@ const DriverDashboard = ({ user }) => {
   const acceptRide = async (rideId) => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/rides/${rideId}/accept`, {
+      const response = await fetch(`${API_BASE}/rides/${rideId}/accept`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -123,7 +128,7 @@ const DriverDashboard = ({ user }) => {
   const updateRideStatus = async (rideId, newStatus) => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/rides/${rideId}/status`, {
+      const response = await fetch(`${API_BASE}/rides/${rideId}/status`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

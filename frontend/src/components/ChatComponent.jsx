@@ -9,6 +9,11 @@ const ChatComponent = ({ ride, currentUser, onClose }) => {
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // API Base URL
+  const API_BASE = window.location.hostname === 'localhost' 
+    ? '/api' 
+    : 'https://JonathanOliveira.pythonanywhere.com/api';
+
   useEffect(() => {
     if (ride) {
       fetchMessages();
@@ -20,7 +25,7 @@ const ChatComponent = ({ ride, currentUser, onClose }) => {
 
   const fetchMessages = async () => {
     try {
-      const response = await fetch(`/api/rides/${ride.id}/messages`);
+      const response = await fetch(`${API_BASE}/rides/${ride.id}/messages`);
       if (response.ok) {
         const data = await response.json();
         setMessages(data);
@@ -35,7 +40,7 @@ const ChatComponent = ({ ride, currentUser, onClose }) => {
 
     setLoading(true);
     try {
-      const response = await fetch(`/api/rides/${ride.id}/messages`, {
+      const response = await fetch(`${API_BASE}/rides/${ride.id}/messages`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

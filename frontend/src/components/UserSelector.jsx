@@ -12,7 +12,7 @@ const UserSelector = ({ onUserSelect }) => {
   // API Base URL - ajusta automaticamente para GitHub Pages ou local
   const API_BASE = window.location.hostname === 'localhost' 
     ? '/api' 
-    : 'https://uber-backend-api.herokuapp.com/api'; // Substitua pela URL do seu backend em produção
+    : 'https://JonathanOliveira.pythonanywhere.com/api';
 
   useEffect(() => {
     fetchUsers();

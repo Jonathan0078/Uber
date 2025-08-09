@@ -14,6 +14,11 @@ const PassengerDashboard = ({ user }) => {
   const [loading, setLoading] = useState(false);
   const [showChat, setShowChat] = useState(false);
 
+  // API Base URL
+  const API_BASE = window.location.hostname === 'localhost' 
+    ? '/api' 
+    : 'https://JonathanOliveira.pythonanywhere.com/api';
+
   useEffect(() => {
     if (user) {
       fetchRides();
@@ -22,7 +27,7 @@ const PassengerDashboard = ({ user }) => {
 
   const fetchRides = async () => {
     try {
-      const response = await fetch(`/api/rides?passenger_id=${user.id}`);
+      const response = await fetch(`${API_BASE}/rides?passenger_id=${user.id}`);
       if (response.ok) {
         const data = await response.json();
         setRides(data);
@@ -46,7 +51,7 @@ const PassengerDashboard = ({ user }) => {
 
     setLoading(true);
     try {
-      const response = await fetch('/api/rides', {
+      const response = await fetch(`${API_BASE}/rides`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
