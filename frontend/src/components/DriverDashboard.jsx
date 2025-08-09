@@ -14,9 +14,20 @@ const DriverDashboard = ({ user }) => {
   const [showChat, setShowChat] = useState(false);
 
   // API Base URL
-  const API_BASE = window.location.hostname === 'localhost' 
-    ? '/api' 
-    : 'https://JonathanOliveira.pythonanywhere.com/api';
+  const getApiBase = () => {
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      return 'http://localhost:5000/api';
+    }
+    if (window.location.hostname.includes('replit.dev') || window.location.hostname.includes('replit.app')) {
+      return `https://${window.location.hostname}/api`;
+    }
+    if (window.location.hostname.includes('github.io')) {
+      return 'https://JonathanOliveira.pythonanywhere.com/api';
+    }
+    return 'https://JonathanOliveira.pythonanywhere.com/api';
+  };
+
+  const API_BASE = getApiBase();
 
   useEffect(() => {
     if (user) {
@@ -55,7 +66,7 @@ const DriverDashboard = ({ user }) => {
       if (response.ok) {
         const data = await response.json();
         setMyRides(data);
-        
+
         // Encontrar corrida ativa
         const activeRide = data.find(ride => 
           ['accepted', 'in_progress'].includes(ride.status)
@@ -265,13 +276,13 @@ const DriverDashboard = ({ user }) => {
                 <p className="text-lg">{currentRide.destination}</p>
               </div>
             </div>
-            
+
             <div className="bg-white p-4 rounded-lg">
               <p className="text-sm font-medium text-gray-600 mb-2">Passageiro</p>
               <p className="text-lg font-semibold">{currentRide.passenger.username}</p>
               <p className="text-sm text-gray-500">{currentRide.passenger.email}</p>
             </div>
-            
+
             <div className="flex gap-2 flex-wrap">
               {currentRide.status === 'accepted' && (
                 <Button 
@@ -283,7 +294,7 @@ const DriverDashboard = ({ user }) => {
                   Iniciar Corrida
                 </Button>
               )}
-              
+
               {currentRide.status === 'in_progress' && (
                 <Button 
                   onClick={() => updateRideStatus(currentRide.id, 'completed')}
@@ -294,7 +305,7 @@ const DriverDashboard = ({ user }) => {
                   Finalizar Corrida
                 </Button>
               )}
-              
+
               <Button 
                 variant="outline" 
                 size="sm"
@@ -304,7 +315,7 @@ const DriverDashboard = ({ user }) => {
                 Conversar
               </Button>
             </div>
-            
+
             <div className="text-sm text-gray-500 flex items-center gap-2">
               <Clock className="h-4 w-4" />
               Aceita em {new Date(currentRide.updated_at).toLocaleString('pt-BR')}
@@ -411,4 +422,3 @@ const DriverDashboard = ({ user }) => {
 };
 
 export default DriverDashboard;
-
