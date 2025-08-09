@@ -10,9 +10,20 @@ const ChatComponent = ({ ride, currentUser, onClose }) => {
   const [loading, setLoading] = useState(false);
 
   // API Base URL
-  const API_BASE = window.location.hostname === 'localhost' 
-    ? '/api' 
-    : 'https://JonathanOliveira.pythonanywhere.com/api';
+  const getApiBase = () => {
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      return 'http://localhost:5000/api';
+    }
+    if (window.location.hostname.includes('replit.dev') || window.location.hostname.includes('replit.app')) {
+      return `https://${window.location.hostname}/api`;
+    }
+    if (window.location.hostname.includes('github.io')) {
+      return 'https://JonathanOliveira.pythonanywhere.com/api';
+    }
+    return 'https://JonathanOliveira.pythonanywhere.com/api';
+  };
+
+  const API_BASE = getApiBase();
 
   useEffect(() => {
     if (ride) {
@@ -100,7 +111,7 @@ const ChatComponent = ({ ride, currentUser, onClose }) => {
           Conversando com {otherUser?.username || 'Usuário'}
         </CardDescription>
       </CardHeader>
-      
+
       <CardContent className="space-y-4">
         {/* Área de Mensagens */}
         <div className="h-64 overflow-y-auto border rounded-lg p-3 space-y-2 bg-gray-50">
@@ -173,4 +184,3 @@ const ChatComponent = ({ ride, currentUser, onClose }) => {
 };
 
 export default ChatComponent;
-
