@@ -9,10 +9,21 @@ const UserSelector = ({ onUserSelect }) => {
   const [newUser, setNewUser] = useState({ username: '', email: '', user_type: 'passenger' });
   const [loading, setLoading] = useState(false);
 
-  // API Base URL - ajusta automaticamente para GitHub Pages ou local
-  const API_BASE = window.location.hostname === 'localhost' 
-    ? '/api' 
-    : 'https://JonathanOliveira.pythonanywhere.com/api';
+  // API Base URL
+  const getApiBase = () => {
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      return 'http://localhost:5000/api';
+    }
+    if (window.location.hostname.includes('replit.dev') || window.location.hostname.includes('replit.app')) {
+      return `https://${window.location.hostname}/api`;
+    }
+    if (window.location.hostname.includes('github.io')) {
+      return 'https://JonathanOliveira.pythonanywhere.com/api';
+    }
+    return 'https://JonathanOliveira.pythonanywhere.com/api';
+  };
+
+  const API_BASE = getApiBase();
 
   useEffect(() => {
     fetchUsers();
@@ -120,7 +131,7 @@ const UserSelector = ({ onUserSelect }) => {
               />
             </div>
           </div>
-          
+
           <div className="space-y-2">
             <label className="text-sm font-medium">Tipo de Usuário</label>
             <div className="flex gap-4">
@@ -142,7 +153,7 @@ const UserSelector = ({ onUserSelect }) => {
               </Button>
             </div>
           </div>
-          
+
           <Button 
             onClick={createUser} 
             disabled={loading || !newUser.username || !newUser.email}
@@ -199,4 +210,3 @@ const UserSelector = ({ onUserSelect }) => {
 };
 
 export default UserSelector;
-
