@@ -3,9 +3,11 @@ from src.models.user import db, User
 from src.models.ride import Ride
 from src.models.message import Message
 from src.services.routing import OSRMRoutingService, format_distance, format_duration
+from src.services.geocoding import NominatimGeocodingService
 
 ride_bp = Blueprint('ride', __name__)
 routing_service = OSRMRoutingService()
+geocoding_service = NominatimGeocodingService()
 
 @ride_bp.route('/rides', methods=['POST'])
 def create_ride():
@@ -22,15 +24,33 @@ def create_ride():
         if not passenger or passenger.user_type != 'passenger':
             return jsonify({'error': 'Passageiro não encontrado'}), 404
         
+        # Geocodificar endereços se coordenadas não fornecidas
+        origin_lat = data.get('origin_lat')
+        origin_lng = data.get('origin_lng')
+        destination_lat = data.get('destination_lat')
+        destination_lng = data.get('destination_lng')
+        
+        if not origin_lat or not origin_lng:
+            origin_coords = geocoding_service.geocode_address(data['origin'])
+            if origin_coords:
+                origin_lat = origin_coords['latitude']
+                origin_lng = origin_coords['longitude']
+        
+        if not destination_lat or not destination_lng:
+            destination_coords = geocoding_service.geocode_address(data['destination'])
+            if destination_coords:
+                destination_lat = destination_coords['latitude']
+                destination_lng = destination_coords['longitude']
+        
         # Criar nova corrida
         ride = Ride(
             passenger_id=data['passenger_id'],
             origin=data['origin'],
             destination=data['destination'],
-            origin_lat=data.get('origin_lat'),
-            origin_lng=data.get('origin_lng'),
-            destination_lat=data.get('destination_lat'),
-            destination_lng=data.get('destination_lng'),
+            origin_lat=origin_lat,
+            origin_lng=origin_lng,
+            destination_lat=destination_lat,
+            destination_lng=destination_lng,
             status='requested'
         )
         
@@ -272,6 +292,44 @@ def get_ride(ride_id):
             return jsonify({'error': 'Corrida não encontrada'}), 404
         
         return jsonify(ride.to_dict()), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@ride_bp.route('/geocode', methods=['POST'])
+def geocode_address():
+    """Geocodificar um endereço"""
+    try:
+        data = request.get_json()
+        
+        if 'address' not in data:
+            return jsonify({'error': 'Endereço é obrigatório'}), 400
+        
+        result = geocoding_service.geocode_address(data['address'])
+        
+        if not result:
+            return jsonify({'error': 'Endereço não encontrado'}), 404
+        
+        return jsonify(result), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@ride_bp.route('/reverse-geocode', methods=['POST'])
+def reverse_geocode():
+    """Geocodificação reversa (coordenadas para endereço)"""
+    try:
+        data = request.get_json()
+        
+        if not all(k in data for k in ('latitude', 'longitude')):
+            return jsonify({'error': 'Latitude e longitude são obrigatórias'}), 400
+        
+        result = geocoding_service.reverse_geocode(data['latitude'], data['longitude'])
+        
+        if not result:
+            return jsonify({'error': 'Localização não encontrada'}), 404
+        
+        return jsonify(result), 200
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500

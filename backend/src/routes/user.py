@@ -31,7 +31,7 @@ def create_user():
             return jsonify({'error': 'Email já existe'}), 400
 
         user = User(
-            username=data['username'], 
+            username=data['username'],
             email=data['email'],
             user_type=data['user_type'],
             is_available=data.get('is_available', False)
@@ -46,8 +46,16 @@ def create_user():
 
 @user_bp.route('/users/<int:user_id>', methods=['GET'])
 def get_user(user_id):
-    user = User.query.get_or_404(user_id)
-    return jsonify(user.to_dict())
+    """Obter detalhes de um usuário específico"""
+    try:
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({'error': 'Usuário não encontrado'}), 404
+
+        return jsonify(user.to_dict()), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @user_bp.route('/users/<int:user_id>', methods=['PUT'])
 def update_user(user_id):
@@ -103,7 +111,7 @@ def update_user_location(user_id):
         data = request.get_json()
 
         if not all(k in data for k in ('latitude', 'longitude')):
-            return jsonify({'error': 'Latitude e longitude são obrigatórios'}), 400
+            return jsonify({'error': 'Latitude e longitude são obrigatórias'}), 400
 
         user = User.query.get(user_id)
         if not user:
@@ -116,7 +124,7 @@ def update_user_location(user_id):
         db.session.commit()
 
         return jsonify({
-            'id': user.id,
+            'message': 'Localização atualizada com sucesso',
             'latitude': user.latitude,
             'longitude': user.longitude,
             'updated_at': user.location_updated_at.isoformat()
@@ -138,8 +146,7 @@ def get_user_location(user_id):
             return jsonify({'error': 'Localização não disponível'}), 404
 
         return jsonify({
-            'id': user.id,
-            'username': user.username,
+            'user_id': user.id,
             'latitude': user.latitude,
             'longitude': user.longitude,
             'updated_at': user.location_updated_at.isoformat() if user.location_updated_at else None
