@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge.jsx';
 import { MapPin, Car, MessageCircle, Clock, CheckCircle, XCircle, Play, Square } from 'lucide-react';
 import ChatComponent from './ChatComponent.jsx';
+import MapComponent from './MapComponent.jsx';
 
 const DriverDashboard = ({ user }) => {
   const [isAvailable, setIsAvailable] = useState(user?.is_available || false);
@@ -322,6 +323,16 @@ const DriverDashboard = ({ user }) => {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* Mapa GPS */}
+      {currentRide && (
+        <MapComponent 
+          currentUser={user}
+          ride={currentRide}
+          showCurrentLocation={true}
+          height="500px"
+        />
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
